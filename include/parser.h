@@ -9,7 +9,6 @@
 #include "macro.h"
 #include "definitions.h"
 
-#define NUM_COMMANDS (sizeof(operations) / sizeof(operations[0]))
 
 // List of operation names
 

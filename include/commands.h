@@ -3,13 +3,9 @@
 #include <stdio.h>
 
 #include "definitions.h"
-#include "label.h"
 
-extern const char *operations[] = {
-    "mov", "cmp", "add", "sub", "lea", "clr", 
-    "not", "inc", "dec", "jmp", "bne", "jsr", 
-    "red", "prn", "rts", "stop"
-};
+#define NUM_COMMANDS 16
+extern const char *operations[NUM_COMMANDS]; 
 
 typedef enum {
     MOV = 0,
@@ -50,7 +46,7 @@ int Add(int *num1, int *num2);
 
 int Sub(int *num1, int *num2);
 
-int Lea(Label *label, int *reg);
+// int Lea(Label *label, int *reg);
 
 int Clr(int *reg);
 

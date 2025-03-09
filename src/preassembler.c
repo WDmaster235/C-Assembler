@@ -1,5 +1,4 @@
 #include "../include/preassembler.h"
-#include "../include/parser.h"
 
 int ParseMacros(char *file_path, Macro macros[MAX_MACROS], size_t *macro_count) {
     if (

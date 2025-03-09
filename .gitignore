@@ -1,1 +1,6 @@
 *.o
+
+build/
+
+assembler
+assembler_test

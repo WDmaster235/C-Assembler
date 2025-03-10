@@ -56,30 +56,34 @@ int ParseLabels(const char *filePath, LabelTable *table) {
     
     char line[MAX_LINE_LENGTH];
     int lineCounter = 0;
+    
     while (fgets(line, MAX_LINE_LENGTH, fp)) {
         lineCounter++;
+
         // Trim leading whitespace
         char *trimmed = line;
         while (isspace((unsigned char)*trimmed)) {
             trimmed++;
         }
+
         // Skip empty lines or comment lines
         if (*trimmed == '\0' || *trimmed == COMMENT_CHAR) {
             continue;
         }
+
         // Look for a colon that indicates a label definition
         char *colon = strchr(trimmed, LABEL_DELIM);
         if (colon != NULL) {
-            // Assume label definition is the first token ending with ':'
+            // Ensure it's a standalone label (no spaces before colon)
             size_t labelLength = colon - trimmed;
             if (labelLength > 0 && labelLength < MAX_SYMBOL_NAME) {
                 char labelName[MAX_SYMBOL_NAME];
                 strncpy(labelName, trimmed, labelLength);
                 labelName[labelLength] = '\0';
-                // Optionally, trim trailing whitespace from labelName here if needed.
-                // Ensure the label name is not a command name.
+
+                // Ensure the label name is not a command name
                 if (!IsCommandName(labelName)) {
-                    // For demonstration, use the current line number as the label's address.
+                    printf("Detected label: %s at line %d\n", labelName, lineCounter);
                     int status = addLabel(table, labelName, lineCounter, 0, 0);
                     if (status != 0) {
                         fprintf(stderr, "Warning: Could not add label '%s' (status %d)\n", labelName, status);
@@ -88,7 +92,8 @@ int ParseLabels(const char *filePath, LabelTable *table) {
             }
         }
     }
-    
+
     fclose(fp);
     return 0;
 }
+

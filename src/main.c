@@ -48,6 +48,17 @@ int main(void) {
         fclose(output_fd);
     }
 
+
+    printf("Expanded file content:\n");
+    FILE *debug_fp = fopen("test/test2.asm", "r");
+    if (debug_fp) {
+        char line[MAX_LINE_LENGTH] = {0};
+        while (fgets(line, MAX_LINE_LENGTH, debug_fp)) {
+            printf("%s", line); // Print each line to debug if labels exist
+        }
+        fclose(debug_fp);
+    }
+
     // Initialize and parse labels from the expanded file.
     LabelTable labelTable;
     if (initLabelTable(&labelTable) != 0) {

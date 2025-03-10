@@ -1,7 +1,7 @@
 mcro mcb
     line1
     line2
-mcroend 
+mcroend
 
 mcro mcc
     line3
@@ -13,6 +13,15 @@ mcroend
 ;     line6
 ; mcroend
 
-mcc
+START:
+    mcb  
 
-mcb
+LOOP:
+    mcc  
+    jmp START
+    cmp LOOP, START
+
+END:
+    line1
+    line2
+    bne LOOP

@@ -11,6 +11,8 @@ mcroend
 
 DATA_LABEL: .data 5, -3, 10
 
+STR: .string "abcdef"
+
 START:
     mcb
 

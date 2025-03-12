@@ -149,3 +149,44 @@ int parseDataDirective(const char *line, DataImage *data) {
     
     return 0;
 }
+
+int parseStringDirective(const char *line, DataImage *data) {
+    // Look for the ".string" keyword in the line.
+    const char *p = strstr(line, ".string");
+    if (!p) return -1; // Not a string directive
+    p += strlen(".string");
+    
+    // Skip whitespace
+    while (isspace((unsigned char)*p)) {
+        p++;
+    }
+    
+    // The next character must be a double quote.
+    if (*p != '\"') {
+        fprintf(stderr, "Error: .string directive missing opening quote\n");
+        return -1;
+    }
+    p++; // Skip the opening quote.
+    
+    // Process each character until the closing quote is found.
+    while (*p && *p != '\"') {
+        if (addDataValue(data, (int)*p) != 0) {
+            fprintf(stderr, "Error adding string character %c\n", *p);
+            return -1;
+        }
+        p++;
+    }
+    if (*p != '\"') {
+        fprintf(stderr, "Error: .string directive missing closing quote\n");
+        return -1;
+    }
+    p++; // Skip the closing quote.
+    
+    // Append terminating 0.
+    if (addDataValue(data, 0) != 0) {
+        fprintf(stderr, "Error adding terminating 0 for string\n");
+        return -1;
+    }
+    
+    return 0;
+}

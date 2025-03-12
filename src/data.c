@@ -5,6 +5,13 @@
 #include <ctype.h>
 #include <errno.h>
 
+#include "data.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+#include <errno.h>
+
 int initDataImage(DataImage *data) {
     if (!data) return -1;
     data->values = malloc(INITIAL_DATA_CAPACITY * sizeof(int));
@@ -36,3 +43,4 @@ void freeDataImage(DataImage *data) {
         data->capacity = 0;
     }
 }
+

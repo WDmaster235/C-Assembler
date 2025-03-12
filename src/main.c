@@ -63,7 +63,7 @@ int main(void) {
         fclose(output_fd);
     }
 
-    /* Process the expanded file to check both labels and .data directives */
+    /* Process the expanded file to check both labels and directives (.data and .string) */
     FILE *input_fp = fopen("test/test2.asm", "r");
     if (!input_fp) {
         fprintf(stderr, "Error opening input file\n");
@@ -72,8 +72,8 @@ int main(void) {
 
     while (fgets(line, MAX_LINE_LENGTH, input_fp)) {
         lineNumber++;
-        /* Check if a label is defined on this line.
-           A label is assumed to be a token at the beginning ending with ':' */
+        /* First, if the line defines a label, add it.
+           For lines with a directive (.data or .string), the label gets the current dataImage.count as its address. */
         char *colon = strchr(line, ':');
         if (colon) {
             char labelName[MAX_SYMBOL_NAME];
@@ -81,19 +81,22 @@ int main(void) {
             if (labelLen < MAX_SYMBOL_NAME) {
                 strncpy(labelName, line, labelLen);
                 labelName[labelLen] = '\0';
-                /* If the same line contains a .data directive, the label's address is the current data count.
-                   Otherwise, use the line number as the address (or another suitable counter). */
-                if (strstr(line, ".data") != NULL) {
+                if (strstr(line, ".data") != NULL || strstr(line, ".string") != NULL) {
                     addLabel(&labelTable, labelName, dataImage.count, 0, 0);
                 } else {
                     addLabel(&labelTable, labelName, lineNumber, 0, 0);
                 }
             }
         }
-        /* Check for .data directive in the line */
+        /* Process directives */
         if (strstr(line, ".data") != NULL) {
             if (parseDataDirective(line, &dataImage) != 0) {
                 fprintf(stderr, "Failed to parse .data directive on line %d\n", lineNumber);
+            }
+        }
+        if (strstr(line, ".string") != NULL) {
+            if (parseStringDirective(line, &dataImage) != 0) {
+                fprintf(stderr, "Failed to parse .string directive on line %d\n", lineNumber);
             }
         }
     }
@@ -102,7 +105,7 @@ int main(void) {
     printf("----------\nLabel Table:\n");
     printLabelTable(&labelTable, stdout);
 
-    printf("----------\nStored .data values:\n");
+    printf("----------\nStored .data/.string values:\n");
     for (size_t i = 0; i < dataImage.count; i++) {
         printf("%d ", dataImage.values[i]);
     }

@@ -4,10 +4,15 @@
 #include <string.h>
 #include <stddef.h>
 #include <ctype.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <errno.h>
 
 #include "commands.h"
 #include "macro.h"
 #include "definitions.h"
+#include "data.h"
+#include "label.h"
 
 
 // List of operation names
@@ -20,6 +25,8 @@ int IsCommandName(char *macro_name);
 // Index begins from zero
 int IsCommentLine(char *line, size_t line_length);
 
-// TODO: More to come
+int ParseLabels(const char *filePath, LabelTable *table);
+
+int parseDataDirective(const char *line, DataImage *data);
 
 #endif

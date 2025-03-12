@@ -9,9 +9,7 @@ mcro mcc
     line5
 mcroend
 
-; mcro mov
-;     line6
-; mcroend
+DATA_LABEL: .data 5, -3, 10
 
 START:
     line1

@@ -3,9 +3,9 @@ CC = gcc
 CFLAGS = -Wall -Wextra -g
 INCLUDES = -Iinclude
 OBJDIR = build
-SRC = src/main.c src/preassembler.c src/parser.c src/encoder.c src/io.c src/macro.c src/commands.c src/label.c
+SRC = src/main.c src/preassembler.c src/parser.c src/encoder.c src/io.c src/macro.c src/commands.c src/label.c src/data.c
 OBJ = $(OBJDIR)/main.o $(OBJDIR)/preassembler.o $(OBJDIR)/parser.o $(OBJDIR)/encoder.o \
-      $(OBJDIR)/io.o $(OBJDIR)/macro.o $(OBJDIR)/commands.o $(OBJDIR)/label.o
+      $(OBJDIR)/io.o $(OBJDIR)/macro.o $(OBJDIR)/commands.o $(OBJDIR)/label.o $(OBJDIR)/data.o
 
 # Targets
 EXEC = assembler

@@ -9,15 +9,13 @@ mcro mcc
     line5
 mcroend
 
-; mcro mov
-;     line6
-; mcroend
+DATA_LABEL: .data 5, -3, 10
 
 START:
-    mcb  
+    mcb
 
 LOOP:
-    mcc  
+    mcc
     jmp START
     cmp LOOP, START
 

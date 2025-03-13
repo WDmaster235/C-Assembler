@@ -98,19 +98,15 @@ int ParseLabels(const char *filePath, LabelTable *table) {
 }
 
 int parseDataDirective(const char *line, DataImage *data) {
-    // Look for the ".data" keyword in the line.
     const char *p = strstr(line, ".data");
     if (!p) return -1; // Not a data directive
     p += 5; // Move past ".data"
     
-    // Skip any whitespace after ".data"
     while (isspace((unsigned char)*p)) {
         p++;
     }
     
-    // Process the comma-separated list of numbers.
     while (*p != '\0' && *p != '\n') {
-        // Skip any leading whitespace before each number.
         while (isspace((unsigned char)*p)) {
             p++;
         }
@@ -135,54 +131,60 @@ int parseDataDirective(const char *line, DataImage *data) {
         }
         
         p = endptr;
-        
-        // Skip any whitespace after the number.
         while (isspace((unsigned char)*p)) {
             p++;
         }
-        
-        // If a comma is found, skip it.
         if (*p == ',') {
             p++;
         }
     }
-    
     return 0;
 }
 
 int parseStringDirective(const char *line, DataImage *data) {
-    // Look for the ".string" keyword in the line.
     const char *p = strstr(line, ".string");
     if (!p) return -1; // Not a string directive
     p += strlen(".string");
     
-    // Skip whitespace
     while (isspace((unsigned char)*p)) {
         p++;
     }
     
-    // The next character must be a double quote.
-    if (*p != '\"') {
+    // Accept either ASCII double quote (") or left curly quote (“)
+    int open_quote_len = 0;
+    if (strncmp(p, "\"", 1) == 0) {
+        open_quote_len = 1;
+    } else if (strncmp(p, "\xE2\x80\x9C", 3) == 0) { // UTF-8 for “
+        open_quote_len = 3;
+    } else {
         fprintf(stderr, "Error: .string directive missing opening quote\n");
         return -1;
     }
-    p++; // Skip the opening quote.
+    p += open_quote_len;
     
-    // Process each character until the closing quote is found.
-    while (*p && *p != '\"') {
+    int closing_found = 0;
+    while (*p) {
+        if (strncmp(p, "\"", 1) == 0) {
+            p += 1;
+            closing_found = 1;
+            break;
+        } else if (strncmp(p, "\xE2\x80\x9D", 3) == 0) { // UTF-8 for ”
+            p += 3;
+            closing_found = 1;
+            break;
+        }
         if (addDataValue(data, (int)*p) != 0) {
             fprintf(stderr, "Error adding string character %c\n", *p);
             return -1;
         }
         p++;
     }
-    if (*p != '\"') {
+    
+    if (!closing_found) {
         fprintf(stderr, "Error: .string directive missing closing quote\n");
         return -1;
     }
-    p++; // Skip the closing quote.
     
-    // Append terminating 0.
     if (addDataValue(data, 0) != 0) {
         fprintf(stderr, "Error adding terminating 0 for string\n");
         return -1;

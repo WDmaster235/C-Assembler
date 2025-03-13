@@ -62,58 +62,53 @@ int ParseMacros(char *file_path, Macro macros[MAX_MACROS], size_t *macro_count) 
     return 0;
 }
 
-int ExpandMacros(char *input_path, char *output_path, Macro macros[MAX_MACROS], size_t *macro_count) {
-    if (input_path == NULL || output_path == NULL || macros == NULL || macro_count == NULL) {
+
+int ExpandMacros(const char *input_path, const char *output_path) {
+    Macro macros[MAX_MACROS] = {0};
+    size_t macro_count = 0;
+    
+    int status = ParseMacros((char *)input_path, macros, &macro_count);
+    if (status != 0) {
+        return status;
+    }
+    
+    FILE *input_fd = fopen(input_path, "r");
+    if (!input_fd) {
         return STATUS_CATASTROPHIC;
     }
-
-    FILE *input_fd = fopen(input_path, "r");
-    if (input_fd == NULL) return STATUS_CATASTROPHIC;
-
+    
     FILE *output_fd = fopen(output_path, "w");
-    if (output_fd == NULL) {
+    if (!output_fd) {
         fclose(input_fd);
         return STATUS_CATASTROPHIC;
     }
-
+    
     char line[MAX_LINE_LENGTH] = {0};
     Macro *curr = NULL;
-
+    
     while (fgets(line, MAX_LINE_LENGTH, input_fd)) {
-        if (curr) curr = NULL;
-
-        // Skip empty lines directly
         if (line[0] == '\n' || line[0] == '\r') {
-            if (fprintf(output_fd, "%s", line) < 0) {
-                fclose(input_fd);
-                fclose(output_fd);
-                return STATUS_CATASTROPHIC;
-            }
+            fprintf(output_fd, "%s", line);
             continue;
         }
-
-        // Skip leading whitespace
+        
         size_t start = strspn(line, " \t");
-
-        // Identify potential macro calls
         size_t name_length = 0;
         while (line[start + name_length] != '\0' && !isspace(line[start + name_length])) {
             name_length++;
         }
-
-        // Extract the first word (potential macro name)
+        
         char *macro_name = strndup(line + start, name_length);
-        if (macro_name == NULL) {
+        if (!macro_name) {
             fclose(input_fd);
             fclose(output_fd);
-            return STATUS_CATASTROPHIC; // Memory allocation failed
+            return STATUS_CATASTROPHIC;
         }
-
-        curr = FindMacro(macro_name, macros, macro_count);
-        free(macro_name); // Free dynamically allocated macro_name
-
+        
+        curr = FindMacro(macro_name, macros, &macro_count);
+        free(macro_name);
+        
         if (curr != NULL) {
-            // Found a macro, write its body to the output
             for (size_t i = 0; i < curr->line_count; i++) {
                 if (fprintf(output_fd, "%s", curr->body[i]) < 0) {
                     fclose(input_fd);
@@ -122,7 +117,6 @@ int ExpandMacros(char *input_path, char *output_path, Macro macros[MAX_MACROS], 
                 }
             }
         } else {
-            // Not a macro, write the line as-is
             if (fprintf(output_fd, "%s", line) < 0) {
                 fclose(input_fd);
                 fclose(output_fd);
@@ -130,11 +124,12 @@ int ExpandMacros(char *input_path, char *output_path, Macro macros[MAX_MACROS], 
             }
         }
     }
-
+    
     fclose(input_fd);
     fclose(output_fd);
     return 0;
 }
+
 
 // Copies a macro, frees original macro
 Macro *DeepCopyMacro(Macro *src) {

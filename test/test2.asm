@@ -1,30 +1,20 @@
-mcro mcb
-    line1
-    line2
+MAIN: add r3, LIST
+LOOP: prn #48
+mcro a_mc
+cmp K, #-6
+ bne &END
 mcroend
-
-mcro mcc
-    line3
-    line4
-    line5
-mcroend
-
-DATA_LABEL: .data 5, -3, 10
-
-STR: .string "abcdef"
-
-START:
-    line1
-    line2
-
-LOOP:
-    line3
-    line4
-    line5
-    jmp START
-    cmp LOOP, START
-
-END:
-    line1
-    line2
-    bne LOOP
+ lea STR, r6
+ inc r6
+ mov r3, K
+ sub r1, r4
+ bne END
+cmp K, #-6
+ bne &END
+ dec K
+ jmp &LOOP
+END: stop
+STR: .string “abcd”
+LIST: .data 6, -9
+ .data -100
+K: .data 31 

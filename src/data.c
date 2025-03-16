@@ -26,8 +26,6 @@ int addDataValue(DataImage *data, int value) {
     return 0;
 }
 
-
-
 void freeDataImage(DataImage *data) {
     if (data && data->values) {
         free(data->values);

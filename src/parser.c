@@ -3,11 +3,11 @@
 #include "../include/commands.h"
 #include "../include/label.h"
 #include "../include/definitions.h"
+#include "../include/data.h"
 #include <string.h>
 #include <ctype.h>
 #include <stdio.h>
-
-// Existing functions
+#include <stdlib.h>
 
 void TrimWhiteSpace(char *str) {
     char *end;
@@ -145,6 +145,55 @@ int parseDataDirective(const char *line, DataImage *data) {
         if (*p == ',') {
             p++;
         }
+    }
+    
+    return 0;
+}
+
+
+
+int parseStringDirective(const char *line, DataImage *data) {
+    const char *p = strstr(line, ".string");
+    if (!p) return -1;  // Not a .string directive
+    p += strlen(".string");
+    
+    while (isspace((unsigned char)*p)) {
+        p++;
+    }
+    
+    // Check for opening quote (allowing standard " or curly “)
+    if (*p != '"' && strncmp(p, "\xE2\x80\x9C", 3) != 0) {
+        fprintf(stderr, "Error: .string directive missing opening quote\n");
+        return -1;
+    }
+    if (*p == '"') {
+        p++;
+    } else {
+        p += 3;
+    }
+    
+    // Process characters until closing quote (allow standard " or curly ”)
+    while (*p && *p != '"' && strncmp(p, "\xE2\x80\x9D", 3) != 0) {
+        if (addDataValue(data, (int)*p) != 0) {
+            fprintf(stderr, "Error adding character '%c'\n", *p);
+            return -1;
+        }
+        p++;
+    }
+    
+    if (*p == '"') {
+        p++;
+    } else if (strncmp(p, "\xE2\x80\x9D", 3) == 0) {
+        p += 3;
+    } else {
+        fprintf(stderr, "Error: .string directive missing closing quote\n");
+        return -1;
+    }
+    
+    // Append terminating 0
+    if (addDataValue(data, 0) != 0) {
+        fprintf(stderr, "Error adding terminating 0 for string\n");
+        return -1;
     }
     
     return 0;

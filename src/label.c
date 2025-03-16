@@ -1,4 +1,5 @@
 #include "../include/label.h"
+#include "../include/parser.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -19,6 +20,13 @@ int addLabel(LabelTable *table, const char *name, int address, int isEntry, int 
     if (!table || !name) {
         return STATUS_CATASTROPHIC;
     }
+    
+    /* Disallow label names that are the same as a command name */
+    if (IsCommandName((char *)name)) {
+        fprintf(stderr, "Error: Label '%s' cannot be a command name.\n", name);
+        return STATUS_NO_RESULT;
+    }
+    
     // Check for duplicate labels
     for (size_t i = 0; i < table->count; i++) {
         if (strcmp(table->labels[i].name, name) == 0) {

@@ -1,27 +1,23 @@
-mcro mcb
     line1
     line2
-mcroend
-
-mcro mcc
-    line3
-    line4
-    line5
-mcroend
-
+    line1
+    line2
+    line1
+    line2
 DATA_LABEL: .data 5, -3, 10
-
-START:
     line1
     line2
-
+mov:
+    line1
+    line2
+    line1
+    line2
 LOOP:
-    line3
-    line4
-    line5
+    mcc
     jmp START
     cmp LOOP, START
-
+    line1
+    line2
 END:
     line1
     line2

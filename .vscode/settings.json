@@ -1,9 +1,10 @@
 {
-    "files.associations": {
-        "algorithm": "cpp",
-        "preassembler.h": "c",
-        "encoder.h": "c",
-        "parser.h": "c",
-        "string.h": "c"
-    }
+  "files.associations": {
+    "algorithm": "cpp",
+    "preassembler.h": "c",
+    "encoder.h": "c",
+    "parser.h": "c",
+    "string.h": "c",
+    "definitions.h": "c"
+  }
 }

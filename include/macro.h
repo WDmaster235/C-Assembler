@@ -2,33 +2,37 @@
 #define MACRO_H
 
 #include <stddef.h>
-
-#define MAX_MACROS        16
-#define MAX_MACRO_NAME    32
-#define MAX_MACRO_LINES   128
-
-#include <stddef.h>
 #include <stdio.h>
-#include <string.h>
-#include <ctype.h>
-#include <stdlib.h>
 #include "definitions.h"
 #include "io.h"
 
-typedef struct s_macro
-{
+#define MAX_MACRO_NAME    32
+#define MAX_MACRO_LINES   128
+#define INITIAL_MACRO_CAPACITY 16
+
+typedef struct s_macro {
     char *name;
     char **body;
     size_t line_count;
 } Macro;
 
-// Returns a pointer to the macro with the given name, or NULL if it doesn't exist
-Macro *FindMacro(char *name, Macro macros[MAX_MACROS], size_t *macro_count);
+/* Dynamic array for macros */
+typedef struct {
+    Macro *macros;
+    size_t count;
+    size_t capacity;
+} MacroArray;
 
-// Returns 0 upon success, ERRORCODE upon failure
+/* Dynamic Macro Array management functions */
+int initMacroArray(MacroArray *mArray);
+int addMacroToArray(MacroArray *mArray, Macro *macro);
+Macro *FindMacroDynamic(char *name, MacroArray *mArray);
+void freeMacroArray(MacroArray *mArray);
+
 int AddMacro(FILE *file_fd, Macro *macro);
-
-// Returns 0 upon success, -1 upon failure
 int CleanUpMacro(Macro *macro);
+
+/*Parse macros from a file into a dynamic MacroArray */
+int ParseMacrosDynamic(const char *file_path, MacroArray *mArray);
 
 #endif

@@ -5,6 +5,7 @@
 #include "../include/io.h"
 #include "../include/label.h"
 #include "../include/data.h"
+#include "../include/macro.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,67 +14,82 @@
 int main(void) {
     printf("Starting program...\n");
 
-    Macro macros[MAX_MACROS] = {0};
-    size_t count = 0;
+    char line[MAX_LINE_LENGTH];
+    
+    /* ---------- Print Input File ---------- */
+    printf("----------\nInput file content:\n");
+    FILE *inputFile = fopen("test/test1.asm", "r");
+    if (!inputFile) {
+        fprintf(stderr, "Error opening input file 'test/test1.asm'\n");
+        return STATUS_CATASTROPHIC;
+    }
+    while (fgets(line, MAX_LINE_LENGTH, inputFile)) {
+        printf("%s", line);
+    }
+    fclose(inputFile);
+    
+    /* ---------- Parse Macros into Dynamic Array ---------- */
+    MacroArray macroArray;
+    if (initMacroArray(&macroArray) != 0) {
+        fprintf(stderr, "Error initializing macro array\n");
+        return STATUS_CATASTROPHIC;
+    }
+    int result = ParseMacrosDynamic("test/test1.asm", &macroArray);
+    if (result != 0) {
+        printf("ERROR: ParseMacrosDynamic returned %d\n", result);
+        freeMacroArray(&macroArray);
+        return 1;
+    }
+    printf("----------\nFound %zu macros.\n", macroArray.count);
+    for (size_t i = 0; i < macroArray.count; i++) {
+        printf("Macro %zu: %s\n", i, macroArray.macros[i].name);
+    }
+    
+    /* ---------- Expand Macros ---------- */
+    result = ExpandMacros("test/test1.asm", "test/test2.asm", &macroArray);
+    if (result != 0) {
+        printf("ERROR during macro expansion (code %d)\n", result);
+        freeMacroArray(&macroArray);
+        return 1;
+    }
+    printf("----------\nExpanded file content:\n");
+    FILE *expandedFile = fopen("test/test2.asm", "r");
+    if (!expandedFile) {
+        printf("ERROR: Could not open output file 'test/test2.asm'.\n");
+        freeMacroArray(&macroArray);
+        return 1;
+    }
+    while (fgets(line, MAX_LINE_LENGTH, expandedFile)) {
+        printf("%s", line);
+    }
+    fclose(expandedFile);
+    
+    /* ---------- Process Expanded File for Labels & Directives ---------- */
     DataImage dataImage;
     LabelTable labelTable;
-    char line[MAX_LINE_LENGTH];
     int lineNumber = 0;
-
-    /* Initialize DataImage and LabelTable */
     if (initDataImage(&dataImage) != 0) {
         fprintf(stderr, "Error initializing data image\n");
+        freeMacroArray(&macroArray);
         return STATUS_CATASTROPHIC;
     }
     if (initLabelTable(&labelTable) != 0) {
         fprintf(stderr, "Error initializing label table\n");
+        freeDataImage(&dataImage);
+        freeMacroArray(&macroArray);
         return STATUS_CATASTROPHIC;
-    }
-
-    printf("Expanding macros...\n");
-    int result = ParseMacros("test/test1.asm", macros, &count);
-    if (result != 0) {
-        printf("ERROR: ExpandMacros returned %d\n", result);
-        return 1;
-    }
-
-    printf("Macro expansion complete. Count: %zu\n", count);
-    printf("----------\n");
-    for (size_t i = 0; i < count; i++) {
-        printf("Macro %zu: %s\n", i, macros[i].name);
-        for (size_t j = 0; j < macros[i].line_count; j++) {
-            printf("%s", macros[i].body[j]);
-        }
     }
     
-    printf("----------\n");
-    result = ExpandMacros("test/test1.asm", "test/test2.asm", macros, &count);
-    if (result != 0) {
-        printf("ERROR during macro expansion\n");
-    } else {
-        FILE *output_fd = fopen("test/test2.asm", "r");
-        if (output_fd == NULL) {
-            printf("ERROR: Could not open output file 'test/test2.asm'.\n");
-            return 1;
-        }
-        printf("Expanded file content:\n");
-        while (fgets(line, MAX_LINE_LENGTH, output_fd)) {
-            printf("%s", line);
-        }
-        fclose(output_fd);
-    }
-
-    /* Process the expanded file to check both labels and .data directives */
-    FILE *input_fp = fopen("test/test2.asm", "r");
-    if (!input_fp) {
-        fprintf(stderr, "Error opening input file\n");
+    expandedFile = fopen("test/test2.asm", "r");
+    if (!expandedFile) {
+        fprintf(stderr, "Error opening expanded file\n");
+        freeDataImage(&dataImage);
+        freeLabelTable(&labelTable);
+        freeMacroArray(&macroArray);
         return STATUS_CATASTROPHIC;
     }
-
-    while (fgets(line, MAX_LINE_LENGTH, input_fp)) {
+    while (fgets(line, MAX_LINE_LENGTH, expandedFile)) {
         lineNumber++;
-        /* Check if a label is defined on this line.
-           A label is assumed to be a token at the beginning ending with ':' */
         char *colon = strchr(line, ':');
         if (colon) {
             char labelName[MAX_SYMBOL_NAME];
@@ -81,35 +97,38 @@ int main(void) {
             if (labelLen < MAX_SYMBOL_NAME) {
                 strncpy(labelName, line, labelLen);
                 labelName[labelLen] = '\0';
-                /* If the same line contains a .data directive, the label's address is the current data count.
-                   Otherwise, use the line number as the address (or another suitable counter). */
-                if (strstr(line, ".data") != NULL) {
+                if (strstr(line, ".data") != NULL || strstr(line, ".string") != NULL) {
                     addLabel(&labelTable, labelName, dataImage.count, 0, 0);
                 } else {
                     addLabel(&labelTable, labelName, lineNumber, 0, 0);
                 }
             }
         }
-        /* Check for .data directive in the line */
         if (strstr(line, ".data") != NULL) {
             if (parseDataDirective(line, &dataImage) != 0) {
                 fprintf(stderr, "Failed to parse .data directive on line %d\n", lineNumber);
             }
         }
+        if (strstr(line, ".string") != NULL) {
+            if (parseStringDirective(line, &dataImage) != 0) {
+                fprintf(stderr, "Failed to parse .string directive on line %d\n", lineNumber);
+            }
+        }
     }
-    fclose(input_fp);
-
-    printf("----------\nLabel Table:\n");
+    fclose(expandedFile);
+    
+    /* ---------- Final Output ---------- */
     printLabelTable(&labelTable, stdout);
 
-    printf("----------\nStored .data values:\n");
+    printf("----------\nStored .data/.string values:\n");
     for (size_t i = 0; i < dataImage.count; i++) {
         printf("%d ", dataImage.values[i]);
     }
     printf("\n");
-
+    
     freeLabelTable(&labelTable);
     freeDataImage(&dataImage);
+    freeMacroArray(&macroArray);
     printf("Program finished.\n");
     return EXIT_SUCCESS;
 }

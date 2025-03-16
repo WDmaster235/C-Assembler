@@ -3,6 +3,11 @@ mcro mcb
     line2
 mcroend
 
+; mcro mov
+;     line1
+;     line2
+; mcroend
+
 mcro mcc
     line3
     line4
@@ -11,7 +16,7 @@ mcroend
 
 DATA_LABEL: .data 5, -3, 10
 
-START:
+mov:
     mcb
 
 LOOP:

@@ -4,6 +4,7 @@
         "preassembler.h": "c",
         "encoder.h": "c",
         "parser.h": "c",
-        "string.h": "c"
+        "string.h": "c",
+        "definitions.h": "c"
     }
 }

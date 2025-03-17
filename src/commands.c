@@ -1,4 +1,4 @@
-#include <../include/commands.h>
+#include "commands.h"
 
 const char *operations[NUM_COMMANDS] = {
     "mov", "cmp", "add", "sub", "lea", "clr",
@@ -22,21 +22,14 @@ int Cmp(int *num1, int *num2){
 }
 
 int Add(int *num1, int *num2){
-    // if()
     num2 += *num1;
-
     return 0;
 }
 
 int Sub(int *num1, int *num2){
     num2 -= *num1;
-
     return 0;
 }
-
-// int Lea(Label *label, int *reg){
-
-// }
 
 int Clr(int *reg){
     return 0;

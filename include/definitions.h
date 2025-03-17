@@ -84,6 +84,8 @@
 
 ///REGISTERS///
 #define MAX_REGISTER 8
-
+#define MAX_SYMBOL_NAME 32
+#define MAX_LINE_LENGTH 256
+#define NUM_COMMANDS    16
 
 #endif // DEFINITIONS_H

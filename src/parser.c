@@ -93,31 +93,31 @@ int ParseMacrosDynamic(const char *file_path, MacroArray *mArray) {
     return 0;
 }
 
-/* Helper function to update or add a label’s entry/extern flags.
-   Ensures that a label is not simultaneously declared as entry and external. */
+/* Helper function to update a label’s entry/extern flags.
+   It now works only if the label already exists in the table.
+   If the label is undefined, the directive is ignored completely. */
 int updateLabelDirective(LabelTable *table, const char *name, int isEntry, int isExternal) {
     Label *lbl = findLabel(table, name);
-    if (lbl) {
-        /* Do not allow a label to be both entry and external. */
-        if ((isEntry && lbl->isExternal) || (isExternal && lbl->isEntry)) {
-            fprintf(stderr, "Error: Label '%s' cannot be both entry and external.\n", name);
-            return STATUS_NO_RESULT;
-        }
-        lbl->isEntry |= isEntry;
-        lbl->isExternal |= isExternal;
-    } else {
-        /* For an entry directive, warn that the label is undefined.
-           For an extern directive, add the label with a default address of 0. */
-        if (isEntry) {
-            fprintf(stderr, "Warning: Entry directive for undefined label '%s'. Adding it with address 0.\n", name);
-            return addLabel(table, name, 0, 1, 0);
-        } else if (isExternal) {
-            return addLabel(table, name, 0, 0, 1);
-        }
+    if (!lbl) {
+        fprintf(stderr, "Warning: Directive for undefined label '%s' ignored.\n", name);
+        return STATUS_NO_RESULT;
     }
+    /* Do not allow a label to be both entry and external. */
+    if ((isEntry && lbl->isExternal) || (isExternal && lbl->isEntry)) {
+        fprintf(stderr, "Error: Label '%s' cannot be both entry and external.\n", name);
+        return STATUS_NO_RESULT;
+    }
+    lbl->isEntry |= isEntry;
+    lbl->isExternal |= isExternal;
     return 0;
 }
 
+/* ParseLabels: reads the file line by line and processes label definitions,
+   including handling .entry and .extern directives as specified:
+   - Directives must be in the form ".entry LABEL" or "LABEL .entry"
+   - They affect only labels that already exist.
+   If the referenced label does not exist, the directive line is ignored.
+   Returns 0 on success, else an error code. */
 int ParseLabels(const char *filePath, LabelTable *table) {
     if (!filePath || !table)
         return STATUS_CATASTROPHIC;
@@ -132,33 +132,41 @@ int ParseLabels(const char *filePath, LabelTable *table) {
     while (fgets(line, MAX_LINE_LENGTH, fp)) {
         lineCounter++;
         
-        // Make a copy and trim leading/trailing whitespace
+        // Make a copy and trim whitespace
         char lineCopy[MAX_LINE_LENGTH];
         strncpy(lineCopy, line, MAX_LINE_LENGTH);
         lineCopy[MAX_LINE_LENGTH - 1] = '\0';
         TrimWhiteSpace(lineCopy);
         
-        // Skip empty lines or comment lines
+        // Skip empty or comment lines
         if (lineCopy[0] == '\0' || lineCopy[0] == COMMENT_CHAR)
             continue;
         
-        // Tokenize the line into up to three tokens
-        char *tokens[3] = {NULL, NULL, NULL};
+        // Tokenize the line into up to two tokens (we only need directive lines in this case)
+        char *tokens[2] = {NULL, NULL};
         int tokenCount = 0;
         char *token = strtok(lineCopy, " \t\n");
-        while (token && tokenCount < 3) {
-            // Trim each token to remove extra spaces
+        while (token && tokenCount < 2) {
             TrimWhiteSpace(token);
             tokens[tokenCount++] = token;
             token = strtok(NULL, " \t\n");
         }
-        if (tokenCount == 0)
+        if (tokenCount < 2)
             continue;
         
-        /* Case 1: Label definition line (first token contains a colon) */
+        /* Check if the line is a directive line in the form ".entry LABEL" or ".extern LABEL" */
+        if ( (strcmp(tokens[0], ".entry") == 0) || (strcmp(tokens[0], ".extern") == 0) ) {
+            int isEntry = (strcmp(tokens[0], ".entry") == 0) ? 1 : 0;
+            int isExternal = (strcmp(tokens[0], ".extern") == 0) ? 1 : 0;
+            updateLabelDirective(table, tokens[1], isEntry, isExternal);
+            continue;
+        }
+        
+        /* Otherwise, process lines that define labels normally.
+           For a label definition, the first token must contain a colon. */
         char *colonPos = strchr(tokens[0], ':');
         if (colonPos) {
-            *colonPos = '\0';  // Remove the colon
+            *colonPos = '\0';
             TrimWhiteSpace(tokens[0]);
             if (!IsCommandName(tokens[0])) {
                 printf("Detected label: %s at line %d\n", tokens[0], lineCounter);
@@ -168,35 +176,24 @@ int ParseLabels(const char *filePath, LabelTable *table) {
                 }
             }
             /* Check for a directive following the label on the same line */
-            if (tokenCount > 1) {
-                TrimWhiteSpace(tokens[1]);
-                if (strcmp(tokens[1], ".entry") == 0) {
+            token = strtok(NULL, " \t\n");
+            if (token != NULL) {
+                TrimWhiteSpace(token);
+                if (strcmp(token, ".entry") == 0) {
                     updateLabelDirective(table, tokens[0], 1, 0);
-                } else if (strcmp(tokens[1], ".extern") == 0) {
+                } else if (strcmp(token, ".extern") == 0) {
                     updateLabelDirective(table, tokens[0], 0, 1);
                 }
             }
-            continue;
         }
-        
-        /* Case 2: Directive line (no colon present) */
-        if ((strcmp(tokens[0], ".entry") == 0 || strcmp(tokens[0], ".extern") == 0) && tokenCount > 1) {
-            TrimWhiteSpace(tokens[1]);
-            int isEntry = (strcmp(tokens[0], ".entry") == 0) ? 1 : 0;
-            int isExternal = (strcmp(tokens[0], ".extern") == 0) ? 1 : 0;
-            updateLabelDirective(table, tokens[1], isEntry, isExternal);
-        }
-        else if (tokenCount == 2 && (strcmp(tokens[1], ".entry") == 0 || strcmp(tokens[1], ".extern") == 0)) {
-            int isEntry = (strcmp(tokens[1], ".entry") == 0) ? 1 : 0;
-            int isExternal = (strcmp(tokens[1], ".extern") == 0) ? 1 : 0;
-            updateLabelDirective(table, tokens[0], isEntry, isExternal);
-        }
-        // Other lines (such as pure instructions) are ignored in this pass.
+        // All other lines are ignored.
     }
     
     fclose(fp);
     return 0;
 }
+
+
 
 
 /* parseDataDirective: Processes a line with a .data directive and adds its numeric values to DataImage */

@@ -7,10 +7,13 @@ START:
 
 ENTRY_LABEL: .entry
 
+.entry ENTRY_LABEL
+
+.extern ENTRY_LABEL
+
 EXTERN_LABEL: .extern
 
-LOOP:
-    mcc
+LOOP: mcc
     jmp START
     cmp LOOP, ENTRY_LABEL
 

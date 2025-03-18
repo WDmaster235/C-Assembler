@@ -1,21 +1,41 @@
+/* parser.c */
+
+#include "label.h"
 #include "parser.h"
-#include "macro.h"  // For FindMacroDynamic and dynamic macro parsing
-#include "commands.h"
+#include "macro.h"      // For AddMacro, FindMacroDynamic, CleanUpMacro, addMacroToArray, etc.
+#include "commands.h"   // For NUM_COMMANDS, operations, COMMENT_CHAR, etc.
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include <errno.h>
+#include <stdio.h>
 
-/* TrimWhiteSpace: removes leading and trailing whitespace */
+
+
+/* =========================
+   Parser Functions
+   ========================= */
+
+/* TrimWhiteSpace: removes leading and trailing whitespace from a string */
 void TrimWhiteSpace(char *str) {
-    char *end;
-    while (isspace((unsigned char)*str)) str++;
-    end = str + strlen(str) - 1;
-    while (end > str && isspace((unsigned char)*end)) end--;
-    *(end + 1) = '\0';
+    if (!str) return;
+    /* Remove leading whitespace */
+    char *start = str;
+    while (isspace((unsigned char)*start)) {
+        start++;
+    }
+    if (start != str) {
+        memmove(str, start, strlen(start) + 1);  // +1 to copy the null terminator
+    }
+    /* Remove trailing whitespace */
+    char *end = str + strlen(str) - 1;
+    while (end >= str && isspace((unsigned char)*end)) {
+        *end = '\0';
+        end--;
+    }
 }
 
-/* IsCommandName: returns 1 if the given macro name is one of the command names, 0 otherwise */
+/* IsCommandName: returns 1 if the given token is one of the command names, 0 otherwise */
 int IsCommandName(char *macro) {
     if (!macro)
         return 0;
@@ -52,7 +72,7 @@ int ParseMacrosDynamic(const char *file_path, MacroArray *mArray) {
     while (1) {
         int status = AddMacro(file_fd, &currMacro);
         if (status == STATUS_NO_RESULT)
-            break;  // No more macros
+            break;  // No more macros found.
         if (status == STATUS_CATASTROPHIC) {
             fclose(file_fd);
             return STATUS_CATASTROPHIC;
@@ -73,8 +93,31 @@ int ParseMacrosDynamic(const char *file_path, MacroArray *mArray) {
     return 0;
 }
 
-/* ParseLabels: Reads filePath line by line and adds any label (token ending with ':')
-   to the label table. Returns 0 on success, else an error code. */
+/* Helper function to update or add a label’s entry/extern flags.
+   Ensures that a label is not simultaneously declared as entry and external. */
+int updateLabelDirective(LabelTable *table, const char *name, int isEntry, int isExternal) {
+    Label *lbl = findLabel(table, name);
+    if (lbl) {
+        /* Do not allow a label to be both entry and external. */
+        if ((isEntry && lbl->isExternal) || (isExternal && lbl->isEntry)) {
+            fprintf(stderr, "Error: Label '%s' cannot be both entry and external.\n", name);
+            return STATUS_NO_RESULT;
+        }
+        lbl->isEntry |= isEntry;
+        lbl->isExternal |= isExternal;
+    } else {
+        /* For an entry directive, warn that the label is undefined.
+           For an extern directive, add the label with a default address of 0. */
+        if (isEntry) {
+            fprintf(stderr, "Warning: Entry directive for undefined label '%s'. Adding it with address 0.\n", name);
+            return addLabel(table, name, 0, 1, 0);
+        } else if (isExternal) {
+            return addLabel(table, name, 0, 0, 1);
+        }
+    }
+    return 0;
+}
+
 int ParseLabels(const char *filePath, LabelTable *table) {
     if (!filePath || !table)
         return STATUS_CATASTROPHIC;
@@ -88,32 +131,73 @@ int ParseLabels(const char *filePath, LabelTable *table) {
     
     while (fgets(line, MAX_LINE_LENGTH, fp)) {
         lineCounter++;
-        char *trimmed = line;
-        while (isspace((unsigned char)*trimmed)) {
-            trimmed++;
-        }
-        if (*trimmed == '\0' || *trimmed == COMMENT_CHAR)
+        
+        // Make a copy and trim leading/trailing whitespace
+        char lineCopy[MAX_LINE_LENGTH];
+        strncpy(lineCopy, line, MAX_LINE_LENGTH);
+        lineCopy[MAX_LINE_LENGTH - 1] = '\0';
+        TrimWhiteSpace(lineCopy);
+        
+        // Skip empty lines or comment lines
+        if (lineCopy[0] == '\0' || lineCopy[0] == COMMENT_CHAR)
             continue;
-        char *colon = strchr(trimmed, LABEL_DELIM);
-        if (colon) {
-            size_t labelLength = colon - trimmed;
-            if (labelLength > 0 && labelLength < MAX_SYMBOL_NAME) {
-                char labelName[MAX_SYMBOL_NAME];
-                strncpy(labelName, trimmed, labelLength);
-                labelName[labelLength] = '\0';
-                if (!IsCommandName(labelName)) {
-                    printf("Detected label: %s at line %d\n", labelName, lineCounter);
-                    int status = addLabel(table, labelName, lineCounter, 0, 0);
-                    if (status != 0) {
-                        fprintf(stderr, "Warning: Could not add label '%s' (status %d)\n", labelName, status);
-                    }
+        
+        // Tokenize the line into up to three tokens
+        char *tokens[3] = {NULL, NULL, NULL};
+        int tokenCount = 0;
+        char *token = strtok(lineCopy, " \t\n");
+        while (token && tokenCount < 3) {
+            // Trim each token to remove extra spaces
+            TrimWhiteSpace(token);
+            tokens[tokenCount++] = token;
+            token = strtok(NULL, " \t\n");
+        }
+        if (tokenCount == 0)
+            continue;
+        
+        /* Case 1: Label definition line (first token contains a colon) */
+        char *colonPos = strchr(tokens[0], ':');
+        if (colonPos) {
+            *colonPos = '\0';  // Remove the colon
+            TrimWhiteSpace(tokens[0]);
+            if (!IsCommandName(tokens[0])) {
+                printf("Detected label: %s at line %d\n", tokens[0], lineCounter);
+                int status = addLabel(table, tokens[0], lineCounter, 0, 0);
+                if (status != 0) {
+                    fprintf(stderr, "Warning: Could not add label '%s' (status %d)\n", tokens[0], status);
                 }
             }
+            /* Check for a directive following the label on the same line */
+            if (tokenCount > 1) {
+                TrimWhiteSpace(tokens[1]);
+                if (strcmp(tokens[1], ".entry") == 0) {
+                    updateLabelDirective(table, tokens[0], 1, 0);
+                } else if (strcmp(tokens[1], ".extern") == 0) {
+                    updateLabelDirective(table, tokens[0], 0, 1);
+                }
+            }
+            continue;
         }
+        
+        /* Case 2: Directive line (no colon present) */
+        if ((strcmp(tokens[0], ".entry") == 0 || strcmp(tokens[0], ".extern") == 0) && tokenCount > 1) {
+            TrimWhiteSpace(tokens[1]);
+            int isEntry = (strcmp(tokens[0], ".entry") == 0) ? 1 : 0;
+            int isExternal = (strcmp(tokens[0], ".extern") == 0) ? 1 : 0;
+            updateLabelDirective(table, tokens[1], isEntry, isExternal);
+        }
+        else if (tokenCount == 2 && (strcmp(tokens[1], ".entry") == 0 || strcmp(tokens[1], ".extern") == 0)) {
+            int isEntry = (strcmp(tokens[1], ".entry") == 0) ? 1 : 0;
+            int isExternal = (strcmp(tokens[1], ".extern") == 0) ? 1 : 0;
+            updateLabelDirective(table, tokens[0], isEntry, isExternal);
+        }
+        // Other lines (such as pure instructions) are ignored in this pass.
     }
+    
     fclose(fp);
     return 0;
 }
+
 
 /* parseDataDirective: Processes a line with a .data directive and adds its numeric values to DataImage */
 int parseDataDirective(const char *line, DataImage *data) {
@@ -146,14 +230,14 @@ int parseDataDirective(const char *line, DataImage *data) {
     return 0;
 }
 
-/* parseStringDirective: Processes a line with a .string directive and adds its characters (ASCII codes)
+/* parseStringDirective: Processes a line with a .string directive and adds its characters (as ASCII codes)
    plus a terminating 0 to DataImage */
 int parseStringDirective(const char *line, DataImage *data) {
     const char *p = strstr(line, ".string");
     if (!p) return -1;
     p += strlen(".string");
     while (isspace((unsigned char)*p)) p++;
-    /* Accept either standard " or curly “ for the opening quote */
+    /* Accept either a standard double quote or a curly quote for the opening quote */
     if (*p != '"' && strncmp(p, "\xE2\x80\x9C", 3) != 0) {
         fprintf(stderr, "Error: .string directive missing opening quote\n");
         return -1;
@@ -183,4 +267,25 @@ int parseStringDirective(const char *line, DataImage *data) {
         return -1;
     }
     return 0;
+}
+
+/* A helper function to check if a line is an instruction.
+   Here we assume that a non-empty line that does not contain a data directive,
+   and does not consist solely of a label (ending with ':'), is a code instruction. */
+int isInstructionLine(const char *line) {
+    char temp[MAX_LINE_LENGTH];
+    strncpy(temp, line, MAX_LINE_LENGTH);
+    temp[MAX_LINE_LENGTH - 1] = '\0';
+    // Trim leading and trailing whitespace (assume TrimWhiteSpace is defined)
+    TrimWhiteSpace(temp);
+    if (strlen(temp) == 0)
+        return 0;
+    // If the line ends with a colon, we treat it as a label-only line.
+    size_t len = strlen(temp);
+    if (temp[len - 1] == ':')
+        return 0;
+    // If the line contains a data or string directive, it is not an instruction.
+    if (strstr(temp, ".data") != NULL || strstr(temp, ".string") != NULL)
+        return 0;
+    return 1;
 }

@@ -12,7 +12,6 @@
 
 int main(void) {
     printf("Starting program...\n");
-
     char line[MAX_LINE_LENGTH];
     
     /* ---------- Print Input File ---------- */
@@ -48,7 +47,6 @@ int main(void) {
     }
     
     /* ---------- Delete Macro Definitions from Input File ---------- */
-    // Create a temporary file (e.g., test/temp.am) without macro definitions.
     result = DeleteMacroDefinitions("test/test1.asm", "test/temp.am");
     if (result != 0) {
         printf("ERROR: DeleteMacroDefinitions returned %d\n", result);
@@ -75,10 +73,16 @@ int main(void) {
     }
     fclose(expandedFile);
     
-    /* ---------- Process Expanded File for Labels & Directives ---------- */
+    /* ---------- Process Expanded File for Labels, Directives, and Data ----------
+       We use two separate counters:
+         - codeCounter: for instructions (code labels)
+         - dataImage.count: for data directives (data labels)
+    */
     DataImage dataImage;
     LabelTable labelTable;
     int lineNumber = 0;
+    int codeCounter = 0;   // Instruction (code) counter
+
     if (initDataImage(&dataImage) != 0) {
         fprintf(stderr, "Error initializing data image\n");
         freeMacroArray(&macroArray);
@@ -91,9 +95,23 @@ int main(void) {
         return STATUS_CATASTROPHIC;
     }
     
+    /* First pass: Use ParseLabels to add label declarations (and process .entry/.extern)
+       into the label table. This adds labels with an initial address (currently set to the line number). */
+    if (ParseLabels("test/test2.am", &labelTable) != 0) {
+        fprintf(stderr, "Error parsing labels and directives\n");
+        freeDataImage(&dataImage);
+        freeLabelTable(&labelTable);
+        freeMacroArray(&macroArray);
+        return STATUS_CATASTROPHIC;
+    }
+    
+    /* Second pass: Re-scan the expanded file to update label addresses based on our counters.
+       - If a line contains a .data or .string directive, update the label's address to dataImage.count.
+       - Otherwise, update it to the current codeCounter (which is incremented for each instruction line).
+    */
     expandedFile = fopen("test/test2.am", "r");
     if (!expandedFile) {
-        fprintf(stderr, "Error opening expanded file\n");
+        fprintf(stderr, "Error opening expanded file for updating labels\n");
         freeDataImage(&dataImage);
         freeLabelTable(&labelTable);
         freeMacroArray(&macroArray);
@@ -101,20 +119,7 @@ int main(void) {
     }
     while (fgets(line, MAX_LINE_LENGTH, expandedFile)) {
         lineNumber++;
-        char *colon = strchr(line, ':');
-        if (colon) {
-            char labelName[MAX_SYMBOL_NAME];
-            size_t labelLen = colon - line;
-            if (labelLen < MAX_SYMBOL_NAME) {
-                strncpy(labelName, line, labelLen);
-                labelName[labelLen] = '\0';
-                if (strstr(line, ".data") != NULL || strstr(line, ".string") != NULL) {
-                    addLabel(&labelTable, labelName, dataImage.count, 0, 0);
-                } else {
-                    addLabel(&labelTable, labelName, lineNumber, 0, 0);
-                }
-            }
-        }
+        /* Process .data and .string directives */
         if (strstr(line, ".data") != NULL) {
             if (parseDataDirective(line, &dataImage) != 0) {
                 fprintf(stderr, "Failed to parse .data directive on line %d\n", lineNumber);
@@ -123,6 +128,31 @@ int main(void) {
         if (strstr(line, ".string") != NULL) {
             if (parseStringDirective(line, &dataImage) != 0) {
                 fprintf(stderr, "Failed to parse .string directive on line %d\n", lineNumber);
+            }
+        }
+        /* Increment codeCounter if the line is an instruction */
+        if (isInstructionLine(line)) {
+            codeCounter++;
+        }
+        /* If the line defines a label (contains ':'), update its address in the label table */
+        char *colon = strchr(line, ':');
+        if (colon) {
+            char labelName[MAX_SYMBOL_NAME];
+            size_t labelLen = colon - line;
+            if (labelLen < MAX_SYMBOL_NAME) {
+                strncpy(labelName, line, labelLen);
+                labelName[labelLen] = '\0';
+                if (strstr(line, ".data") != NULL || strstr(line, ".string") != NULL) {
+                    Label *lbl = findLabel(&labelTable, labelName);
+                    if (lbl) {
+                        lbl->address = dataImage.count;
+                    }
+                } else {
+                    Label *lbl = findLabel(&labelTable, labelName);
+                    if (lbl) {
+                        lbl->address = codeCounter;
+                    }
+                }
             }
         }
     }
@@ -137,6 +167,14 @@ int main(void) {
         printf("%d ", dataImage.values[i]);
     }
     printf("\n");
+    
+    /* Generate output files for labels marked as .entry and .extern (as required by the specification) */
+    if (writeEntryFile("test/test2.ent", &labelTable) != 0) {
+        fprintf(stderr, "Error writing entry file\n");
+    }
+    if (writeExternFile("test/test2.ext", &labelTable) != 0) {
+        fprintf(stderr, "Error writing extern file\n");
+    }
     
     freeLabelTable(&labelTable);
     freeDataImage(&dataImage);

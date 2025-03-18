@@ -3,7 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-int initLabelTable(LabelTable *table) {
+/* =========================
+   Label Table Functions
+   ========================= */
+
+   int initLabelTable(LabelTable *table) {
     if (!table) return STATUS_CATASTROPHIC;
     table->labels = malloc(INITIAL_LABEL_CAPACITY * sizeof(Label));
     if (!table->labels) return STATUS_CATASTROPHIC;
@@ -68,4 +72,38 @@ void freeLabelTable(LabelTable *table) {
     table->labels = NULL;
     table->count = 0;
     table->capacity = 0;
+}
+
+/* =========================
+   New Output Functions for .entry and .extern
+   ========================= */
+
+/* Writes all labels marked as entry to a file.
+   Each line contains the label name and its address.
+   (Behavior as specified in ממ"ן 14; :contentReference[oaicite:2]{index=2}&#8203;:contentReference[oaicite:3]{index=3}) */
+int writeEntryFile(const char *outputPath, const LabelTable *table) {
+    FILE *fp = fopen(outputPath, "w");
+    if (!fp) return STATUS_CATASTROPHIC;
+    for (size_t i = 0; i < table->count; i++) {
+        if (table->labels[i].isEntry) {
+            fprintf(fp, "%s %d\n", table->labels[i].name, table->labels[i].address);
+        }
+    }
+    fclose(fp);
+    return 0;
+}
+
+/* Writes all labels marked as external to a file.
+   In a complete assembler you might also list the usage locations;
+   here we simply output the label names (&#8203;:contentReference[oaicite:4]{index=4}&#8203;:contentReference[oaicite:5]{index=5}). */
+int writeExternFile(const char *outputPath, const LabelTable *table) {
+    FILE *fp = fopen(outputPath, "w");
+    if (!fp) return STATUS_CATASTROPHIC;
+    for (size_t i = 0; i < table->count; i++) {
+        if (table->labels[i].isExternal) {
+            fprintf(fp, "%s\n", table->labels[i].name);
+        }
+    }
+    fclose(fp);
+    return 0;
 }

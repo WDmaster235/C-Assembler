@@ -14,10 +14,14 @@ DATA_LABEL: .data 5, -3, 10
 START:
     mcb
 
+ENTRY_LABEL: .entry
+
+EXTERN_LABEL: .extern
+
 LOOP:
     mcc
     jmp START
-    cmp LOOP, START
+    cmp LOOP, ENTRY_LABEL
 
 END:
     line1

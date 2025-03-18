@@ -36,4 +36,6 @@ int parseDataDirective(const char *line, DataImage *data);
    Returns 0 on success, non-zero on error. */
 int parseStringDirective(const char *line, DataImage *data);
 
+int isInstructionLine(const char *line);
+
 #endif

@@ -185,7 +185,7 @@ int ExpandMacros(const char *input_path, const char *output_path, MacroArray *mA
     fclose(in);
     fclose(out);
     return 0;
-}
+}                           
 
 /* DeepCopyMacro, if needed */
 Macro *DeepCopyMacro(Macro *src) {

@@ -7,7 +7,7 @@
    Label Table Functions
    ========================= */
 
-   int initLabelTable(LabelTable *table) {
+int initLabelTable(LabelTable *table) {
     if (!table) return STATUS_CATASTROPHIC;
     table->labels = malloc(INITIAL_LABEL_CAPACITY * sizeof(Label));
     if (!table->labels) return STATUS_CATASTROPHIC;

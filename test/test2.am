@@ -1,24 +1,16 @@
-
-
-DATA_LABEL: .data 5, -3, 10
-
-START:
-    line1
-    line2
-
-ENTRY_LABEL: .entry
-
-.entry ENTRY_LABEL
-
-.extern ENTRY_LABEL
-
-EXTERN_LABEL: .extern
-
-LOOP: mcc
-    jmp START
-    cmp LOOP, ENTRY_LABEL
-
-END:
-    line1
-    line2
-    bne LOOP
+MAIN: add r3, LIST
+LOOP: prn #48
+ lea STR, r6
+ inc r6
+ mov r3, K
+ sub r1, r4
+ bne END
+cmp K, #-6
+ bne &END
+ dec K
+ jmp &LOOP
+END: stop
+STR: .string “abcd”
+LIST: .data 6, -9
+ .data -100
+K: .data 31 

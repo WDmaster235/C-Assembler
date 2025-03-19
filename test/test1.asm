@@ -1,32 +1,19 @@
-mcro mcb
-    line1
-    line2
+MAIN: add r3, LIST
+LOOP: prn #48
+mcro a_mc
+cmp K, #-6
+ bne &END
 mcroend
-
-mcro mcc
-    line3
-    line4
-    line5
-mcroend
-
-DATA_LABEL: .data 5, -3, 10
-
-START:
-    mcb
-
-ENTRY_LABEL: .entry
-
-.entry ENTRY_LABEL
-
-.extern ENTRY_LABEL
-
-EXTERN_LABEL: .extern
-
-LOOP: mcc
-    jmp START
-    cmp LOOP, ENTRY_LABEL
-
-END:
-    line1
-    line2
-    bne LOOP
+ lea STR, r6
+ inc r6
+ mov r3, K
+ sub r1, r4
+ bne END
+a_mc
+ dec K
+ jmp &LOOP
+END: stop
+STR: .string “abcd”
+LIST: .data 6, -9
+ .data -100
+K: .data 31 

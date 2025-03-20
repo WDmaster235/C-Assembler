@@ -3,7 +3,7 @@ CC = gcc
 CFLAGS = -Wall -Wextra -g
 INCLUDES = -Iinclude
 OBJDIR = build
-SRC = src/main.c src/parser.c src/encoder.c src/io.c src/macro.c src/commands.c src/label.c src/data.c
+SRC = src/main.c src/parser.c src/encoder.c src/commands.c src/io.c src/macro.c src/label.c src/data.c
 OBJ = $(SRC:src/%.c=$(OBJDIR)/%.o)
 
 # Targets

@@ -56,7 +56,6 @@ Label *findLabel(LabelTable *table, const char *name) {
 
 void printLabelTable(const LabelTable *table, FILE *fp) {
     if (!table || !fp) return;
-    fprintf(fp, "Label Table:\n");
     for (size_t i = 0; i < table->count; i++) {
         fprintf(fp, "Name: %s, Address: %d, Entry: %d, External: %d\n",
                 table->labels[i].name,

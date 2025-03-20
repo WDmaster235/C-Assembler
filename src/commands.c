@@ -1,30 +1,4 @@
 #include "commands.h"
-#include <stdint.h>
-
-#define E 1
-#define R 2
-#define A 4
-
-typedef struct {
-
-    char *name;
-
-    uint8_t are : 3;
-    uint8_t funct : 5;
-    uint8_t dst_reg : 3;
-    uint8_t dst_addressing : 2;
-    uint8_t src_reg : 3;
-    uint8_t src_addressing : 2;
-    uint8_t opcode : 6;
-
-} CommandWord;
-
-typedef struct {
-
-    uint8_t are : 3;
-    uint32_t address : 21;
-
-} Word;
 
 const CommandWord *commands[NUM_COMMANDS] = {
     &(CommandWord){"mov", 0, 0, 0, 0, 0, 0, 0},
@@ -50,5 +24,3 @@ const char *operations[NUM_COMMANDS] = {
     "not", "inc", "dec", "jmp", "bne", "jsr",
     "red", "prn", "rts", "stop"
 };
-
-

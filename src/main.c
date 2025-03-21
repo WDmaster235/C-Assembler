@@ -1,7 +1,22 @@
 /************************************************************
- * main.c: Example that matches the addresses & binary words
- *         shown in your reference table, with data (number)
- *         words encoded with no ARE bits.
+ * main.c: Assembler driver rewritten for clarity and correctness.
+ * This version prints:
+ *   - The input file content,
+ *   - The expanded file content,
+ *   - The machine code array (24-bit binary) with breakdown.
+ *
+ * For command words, the 24-bit word is arranged (from MSB to LSB) as:
+ *   Bits 23-18: opcode (6 bits)
+ *   Bits 17-16: source addressing mode (2 bits)
+ *   Bits 15-13: source register (3 bits)
+ *   Bits 12-11: destination addressing mode (2 bits)
+ *   Bits 10-8:  destination register (3 bits)
+ *   Bits 7-3:   funct (5 bits)
+ *   Bits 2-0:   ARE (3 bits)  <-- forced to A (binary 100)
+ *
+ * For non-command words (data words and extra words for immediates/labels),
+ * the full 24 bits are printed then split into:
+ *   Space: first 21 bits,  ARE: last 3 bits.
  ************************************************************/
 #include "../include/definitions.h"
 #include "../include/encoder.h"
@@ -17,18 +32,38 @@
 #include <ctype.h>
 #include <stdint.h>
 
-// Macros for ARE flags:
-#define E 1
-#define R 2
-#define A 4
+#define MAX_MNEMONIC_LENGTH 20
 
-// Forward declaration so we can call it from main.c
-void TrimWhiteSpace(char *str);
-int countStringWords(const char *line) {
+// Helper: print a substring without copying.
+static void printSubstring(const char *s, int start, int length) {
+    for (int i = start; i < start + length; i++) {
+        putchar(s[i]);
+    }
+}
+
+// Returns nonzero if the line (after trimming) is an instruction.
+static int isInstructionLine(const char *line) {
+    char temp[MAX_LINE_LENGTH];
+    strncpy(temp, line, MAX_LINE_LENGTH);
+    temp[MAX_LINE_LENGTH - 1] = '\0';
+    TrimWhiteSpace(temp);
+    if (temp[0] == '\0' || temp[0] == COMMENT_CHAR)
+        return 0;
+    if (strstr(temp, ".data") || strstr(temp, ".string"))
+        return 0;
+    return 1;
+}
+
+// Returns nonzero if the token represents a register (r0..r7).
+static int isRegister(const char *token) {
+    return (token[0] == 'r' && strlen(token) == 2 && isdigit(token[1]));
+}
+
+// Count words produced by a .string directive.
+static int countStringWords(const char *line) {
     if (strstr(line, ".string")) {
         const char *p = strstr(line, ".string") + 7;
         while (isspace((unsigned char)*p)) p++;
-        // Skip opening quote if present
         if (*p == '"')
             p++;
         int count = 0;
@@ -36,39 +71,19 @@ int countStringWords(const char *line) {
             count++;
             p++;
         }
-        // Plus one for the terminating '\0'
-        return count + 1;
+        return count + 1; // include terminating null
     }
     return 0;
 }
 
-/* isInstructionLine: A simplified check that treats any non-empty,
-   non-data directive line as an instruction. Adjust as needed. */
-int isInstructionLine(const char *line) {
-    char temp[MAX_LINE_LENGTH];
-    strncpy(temp, line, MAX_LINE_LENGTH);
-    temp[MAX_LINE_LENGTH - 1] = '\0';
-    TrimWhiteSpace(temp);
-    if (temp[0] == '\0' || temp[0] == ';')
-        return 0;
-    if (strstr(temp, ".data") || strstr(temp, ".string"))
-        return 0;
-    return 1;
-}
-
-// Check if token is a register (r0..r7)
-int isRegister(const char *token) {
-    return (token[0] == 'r' && strlen(token) == 2 && isdigit(token[1]));
-}
-
-// Count how many words an instruction line produces
-int countInstructionWords(const char *line) {
+// Count words produced by an instruction line.
+static int countInstructionWords(const char *line) {
     char temp[MAX_LINE_LENGTH];
     strncpy(temp, line, MAX_LINE_LENGTH);
     temp[MAX_LINE_LENGTH - 1] = '\0';
     char *colon = strchr(temp, ':');
     char *instr = (colon) ? colon + 1 : temp;
-    while (isspace((unsigned char)*instr)) instr++;
+    TrimWhiteSpace(instr);
     int wordCount = 0;
     char *token = strtok(instr, " \t,\n");
     if (!token) return 0;
@@ -80,49 +95,41 @@ int countInstructionWords(const char *line) {
     return wordCount;
 }
 
-// Count how many words a .data or .string directive produces
-int countDataWords(const char *line) {
+// Count words produced by a .data or .string directive.
+static int countDataWords(const char *line) {
     if (strstr(line, ".data")) {
         const char *p = strstr(line, ".data") + 5;
         int count = 0;
         while (*p) {
             while (isspace((unsigned char)*p)) p++;
-            if (*p == '\0' || *p == '\n') break;
+            if (*p == '\0' || *p == '\n')
+                break;
             strtol(p, (char**)&p, 10);
             count++;
             while (isspace((unsigned char)*p)) p++;
             if (*p == ',') p++;
         }
         return count;
-    }
-    else if (strstr(line, ".string")) {
-        const char *p = strstr(line, ".string") + 7;
-        while (isspace((unsigned char)*p)) p++;
-        if (*p == '"') p++;
-        int count = 0;
-        while (*p && *p != '"') {
-            count++;
-            p++;
-        }
-        return count + 1;
+    } else if (strstr(line, ".string")) {
+        return countStringWords(line);
     }
     return 0;
 }
 
-// -----------------------------
-// Machine Code Word Structures
-// -----------------------------
+// Machine word type enumeration.
 typedef enum {
     DATA_WORD,
     COMMAND_WORD
 } WordType;
 
+// Machine word structure.
 typedef struct {
-    char bin[25]; // 24-bit binary string
+    char bin[25];                       // 24-bit binary string.
+    char mnemonic[MAX_MNEMONIC_LENGTH]; // Non-empty for command words.
 } MachineWord;
 
-// Convert integer to a 24-bit binary string
-void intToBinary(uint32_t value, int bits, char *dest) {
+// Convert an integer to a 24-bit binary string.
+static void intToBinary(uint32_t value, int bits, char *dest) {
     dest[bits] = '\0';
     for (int i = bits - 1; i >= 0; i--) {
         dest[i] = (value & 1) ? '1' : '0';
@@ -130,80 +137,141 @@ void intToBinary(uint32_t value, int bits, char *dest) {
     }
 }
 
-// Encode a data word (number-word) with no ARE bits (top 3 bits = 0)
-void encodeDataWord(int value, char *bin) {
-    uint32_t w = ((uint32_t)value & 0x1FFFFF); // only lower 21 bits
-    intToBinary(w, 24, bin);
+/* Revised encodeDataWord:
+   For a signed immediate value stored in 21 bits (with top 3 bits zero),
+   if negative, add (1 << 21) to produce proper two's complement.
+*/
+static void encodeDataWord(int value, char *bin) {
+    if (value < 0)
+        value += (1 << 21);
+    intToBinary((uint32_t)value, 24, bin);
 }
 
-// Encode a command word (dummy register & addressing for demonstration)
-void encodeCommandWord(const CommandWord *cmd, int dstReg, int dstAddrType,
-                       int srcReg, int srcAddrType, char *bin) {
+/* encodeCommandWord:
+   Constructs a 24-bit command word with fields (MSB to LSB):
+     - opcode (6 bits)
+     - source addressing mode (2 bits)
+     - source register (3 bits)
+     - destination addressing mode (2 bits)
+     - destination register (3 bits)
+     - funct (5 bits)
+     - ARE (3 bits)   <-- forced to A (binary 100)
+*/
+static void encodeCommandWord(const CommandWord *cmd, int srcReg, int srcAddrType,
+                              int dstReg, int dstAddrType, char *bin) {
     uint32_t cw = 0;
-    cw |= (cmd->are & 0x7) << 21;
-    cw |= (cmd->funct & 0x1F) << 16;
-    cw |= (dstReg & 0x7) << 13;
+    cw |= (cmd->opcode & 0x3F) << 18;
+    cw |= (srcAddrType & 0x3) << 16;
+    cw |= (srcReg & 0x7) << 13;
     cw |= (dstAddrType & 0x3) << 11;
-    cw |= (srcReg & 0x7) << 8;
-    cw |= (srcAddrType & 0x3) << 6;
-    cw |= (cmd->opcode & 0x3F);
+    cw |= (dstReg & 0x7) << 8;
+    cw |= (cmd->funct & 0x1F) << 3;
+    cw |= A;  // Force ARE to A (binary 100)
     intToBinary(cw, 24, bin);
 }
 
-// Encode an instruction line into machine words
-void encodeInstructionLine(const char *line, MachineWord *words, int *wordIndex,
-                           LabelTable *lblTable, WordType *types) {
+/* encodeInstructionLine:
+   Parses an instruction line, distinguishes one- vs two-operand commands via
+   the oneOperand flag in CommandWord. For one-operand commands, forces source
+   addressing mode and register to 0. Extra machine words are generated for
+   non-register operands.
+*/
+static void encodeInstructionLine(const char *line, MachineWord *words, int *wordIndex,
+                                  LabelTable *lblTable, WordType *types) {
     char temp[MAX_LINE_LENGTH];
     strncpy(temp, line, MAX_LINE_LENGTH);
     temp[MAX_LINE_LENGTH - 1] = '\0';
     char *colon = strchr(temp, ':');
     char *instr = (colon) ? colon + 1 : temp;
     TrimWhiteSpace(instr);
-    char *token = strtok(instr, " \t,\n");
-    if (!token) return;
+    char *mnemonic = strtok(instr, " \t,\n");
+    if (!mnemonic) return;
     const CommandWord *cmdDef = NULL;
     for (int i = 0; i < NUM_COMMANDS; i++) {
-        if (strcmp(token, operations[i]) == 0) {
+        if (strcmp(mnemonic, operations[i]) == 0) {
             cmdDef = commands[i];
             break;
         }
     }
     if (!cmdDef) return;
-    // Dummy operand values (adjust your parsing as needed)
-    int dstReg = 3;       // e.g. r3
-    int dstAddrType = 1;  // direct addressing
-    int srcReg = 0;       // e.g. r0
-    int srcAddrType = 0;  // immediate addressing
+    int oneOperand = cmdDef->oneOperand;
+    char *operand1 = strtok(NULL, " \t,\n");
+    char *operand2 = oneOperand ? NULL : strtok(NULL, " \t,\n");
+    int srcAddr = 0, srcReg = 0, dstAddr = 0, dstReg = 0;
+    if (operand1) {
+        if (operand1[0] == '#') {
+            srcAddr = ADDRESS_IMMEDIATE;
+            srcReg = 0;
+        } else if (isRegister(operand1)) {
+            srcAddr = ADDRESS_REGISTER;
+            srcReg = operand1[1] - '0';
+        } else if (operand1[0] == '&') {
+            srcAddr = ADDRESS_RELATIVE;
+            srcReg = 0;
+        } else {
+            srcAddr = ADDRESS_DIRECT;
+            srcReg = 0;
+        }
+    }
+    if (!oneOperand && operand2) {
+        if (operand2[0] == '#') {
+            dstAddr = ADDRESS_IMMEDIATE;
+            dstReg = 0;
+        } else if (isRegister(operand2)) {
+            dstAddr = ADDRESS_REGISTER;
+            dstReg = operand2[1] - '0';
+        } else if (operand2[0] == '&') {
+            dstAddr = ADDRESS_RELATIVE;
+            dstReg = 0;
+        } else {
+            dstAddr = ADDRESS_DIRECT;
+            dstReg = 0;
+        }
+    } else {
+        dstAddr = 0;
+        dstReg = 0;
+    }
+    // For one-operand commands, force source addressing and register to zero.
+    if (oneOperand) {
+        srcAddr = 0;
+        srcReg = 0;
+    }
     char bin[25];
-    encodeCommandWord(cmdDef, dstReg, dstAddrType, srcReg, srcAddrType, bin);
+    encodeCommandWord(cmdDef, srcReg, srcAddr, dstReg, dstAddr, bin);
+    strncpy(words[*wordIndex].mnemonic, mnemonic, MAX_MNEMONIC_LENGTH - 1);
+    words[*wordIndex].mnemonic[MAX_MNEMONIC_LENGTH - 1] = '\0';
     strcpy(words[*wordIndex].bin, bin);
     types[*wordIndex] = COMMAND_WORD;
     (*wordIndex)++;
-    while ((token = strtok(NULL, " \t,\n")) != NULL) {
-        if (token[0] == '#') {
-            int num = atoi(token + 1);
-            encodeDataWord(num, bin);
-            strcpy(words[*wordIndex].bin, bin);
-            types[*wordIndex] = COMMAND_WORD;
-            (*wordIndex)++;
-        }
-        else if (isRegister(token)) {
-            continue;
-        }
-        else {
-            Label *lbl = findLabel(lblTable, token);
-            int addr = (lbl) ? lbl->address : 0;
-            encodeDataWord(addr, bin);
-            strcpy(words[*wordIndex].bin, bin);
-            types[*wordIndex] = COMMAND_WORD;
-            (*wordIndex)++;
-        }
+    // For non-register operands, add an extra machine word.
+    if (operand1 && (srcAddr == ADDRESS_IMMEDIATE || srcAddr == ADDRESS_DIRECT || srcAddr == ADDRESS_RELATIVE)) {
+        int value = 0;
+        if (srcAddr == ADDRESS_IMMEDIATE)
+            value = atoi(operand1 + 1);
+        else
+            value = (findLabel(lblTable, operand1) ? findLabel(lblTable, operand1)->address : 0);
+        encodeDataWord(value, bin);
+        words[*wordIndex].mnemonic[0] = '\0';
+        strcpy(words[*wordIndex].bin, bin);
+        types[*wordIndex] = COMMAND_WORD;
+        (*wordIndex)++;
+    }
+    if (!oneOperand && operand2 && (dstAddr == ADDRESS_IMMEDIATE || dstAddr == ADDRESS_DIRECT || dstAddr == ADDRESS_RELATIVE)) {
+        int value = 0;
+        if (dstAddr == ADDRESS_IMMEDIATE)
+            value = atoi(operand2 + 1);
+        else
+            value = (findLabel(lblTable, operand2) ? findLabel(lblTable, operand2)->address : 0);
+        encodeDataWord(value, bin);
+        words[*wordIndex].mnemonic[0] = '\0';
+        strcpy(words[*wordIndex].bin, bin);
+        types[*wordIndex] = COMMAND_WORD;
+        (*wordIndex)++;
     }
 }
 
-// Encode a data line into machine words
-void encodeDataLine(const char *line, MachineWord *words, int *wordIndex,
-                    WordType *types) {
+static void encodeDataLine(const char *line, MachineWord *words, int *wordIndex,
+                             WordType *types) {
     if (strstr(line, ".data")) {
         const char *p = strstr(line, ".data") + 5;
         while (*p) {
@@ -215,13 +283,13 @@ void encodeDataLine(const char *line, MachineWord *words, int *wordIndex,
             char bin[25];
             encodeDataWord(num, bin);
             strcpy(words[*wordIndex].bin, bin);
+            words[*wordIndex].mnemonic[0] = '\0';
             types[*wordIndex] = DATA_WORD;
             (*wordIndex)++;
             while (isspace((unsigned char)*p)) p++;
             if (*p == ',') p++;
         }
-    }
-    else if (strstr(line, ".string")) {
+    } else if (strstr(line, ".string")) {
         char *start = strchr(line, '"');
         if (!start) return;
         start++;
@@ -229,67 +297,38 @@ void encodeDataLine(const char *line, MachineWord *words, int *wordIndex,
             char bin[25];
             encodeDataWord((int)*start, bin);
             strcpy(words[*wordIndex].bin, bin);
+            words[*wordIndex].mnemonic[0] = '\0';
             types[*wordIndex] = DATA_WORD;
             (*wordIndex)++;
             start++;
         }
-        // Add terminating 0.
         char bin[25];
         encodeDataWord(0, bin);
         strcpy(words[*wordIndex].bin, bin);
+        words[*wordIndex].mnemonic[0] = '\0';
         types[*wordIndex] = DATA_WORD;
         (*wordIndex)++;
     }
 }
 
-// The EXACT input code from your reference example:
 static const char *testInputFile = "test/test1.asm";
 
 int main(void) {
-    // Overwrite "test1.asm" with the example code that uses mcro a_mc
-    {
-        FILE *f = fopen(testInputFile, "w");
-        if (!f) {
-            fprintf(stderr, "Could not write test1.asm\n");
-            return 1;
-        }
-        fprintf(f,
-            "MAIN: add r3, LIST\n"
-            "LOOP: prn #48\n"
-            "mcro a_mc\n"
-            "cmp K, #-6\n"
-            " bne &END\n"
-            "mcroend\n"
-            " lea STR, r6\n"
-            " inc r6\n"
-            " mov r3, K\n"
-            " sub r1, r4\n"
-            " bne END\n"
-            "a_mc\n"
-            " dec K\n"
-            " jmp &LOOP\n"
-            "END: stop\n"
-            "STR: .string \"abcd\"\n"
-            "LIST: .data 6, -9\n"
-            " .data -100\n"
-            "K: .data 31\n"
-        );
-        fclose(f);
-    }
-
-    printf("Starting program...\n");
+    printf("Starting program.\n");
+    
+    // 1) Print input file content
     printf("----------\nInput file content:\n");
     FILE *inputFile = fopen(testInputFile, "r");
     if (!inputFile) {
-        fprintf(stderr, "Error opening input file\n");
+        fprintf(stderr, "Error opening input file %s\n", testInputFile);
         return 1;
     }
     char line[MAX_LINE_LENGTH];
     while (fgets(line, MAX_LINE_LENGTH, inputFile))
         printf("%s", line);
     fclose(inputFile);
-
-    // 1) Process Macros
+    
+    // 2) Process macros
     MacroArray macroArray;
     initMacroArray(&macroArray);
     int result = ParseMacrosDynamic(testInputFile, &macroArray);
@@ -310,8 +349,8 @@ int main(void) {
         freeMacroArray(&macroArray);
         return 1;
     }
-
-    // 2) Print expanded file
+    
+    // 3) Print expanded file content
     FILE *expandedFile = fopen("test/test2.am", "r");
     if (!expandedFile) {
         printf("ERROR: Could not open 'test/test2.am'\n");
@@ -322,8 +361,8 @@ int main(void) {
     while (fgets(line, MAX_LINE_LENGTH, expandedFile))
         printf("%s", line);
     fclose(expandedFile);
-
-    // 3) First pass: count total words from instructions + data
+    
+    // 4) First pass: count total words.
     int totalInstWords = 0, totalDataWords = 0;
     expandedFile = fopen("test/test2.am", "r");
     if (!expandedFile) {
@@ -336,7 +375,7 @@ int main(void) {
         strncpy(trimmed, line, MAX_LINE_LENGTH);
         trimmed[MAX_LINE_LENGTH - 1] = '\0';
         TrimWhiteSpace(trimmed);
-        if (trimmed[0] == '\0' || trimmed[0] == ';')
+        if (trimmed[0] == '\0' || trimmed[0] == COMMENT_CHAR)
             continue;
         if (strstr(trimmed, ".data") || strstr(trimmed, ".string"))
             totalDataWords += countDataWords(trimmed);
@@ -345,8 +384,8 @@ int main(void) {
     }
     fclose(expandedFile);
     int totalWordCount = totalInstWords + totalDataWords;
-
-    // 4) Second pass: build label table
+    
+    // 5) Second pass: build label table.
     DataImage dataImage;
     LabelTable labelTable;
     initDataImage(&dataImage);
@@ -366,7 +405,7 @@ int main(void) {
         strncpy(workLine, line, MAX_LINE_LENGTH);
         workLine[MAX_LINE_LENGTH - 1] = '\0';
         TrimWhiteSpace(workLine);
-        if (workLine[0] == '\0' || workLine[0] == ';')
+        if (workLine[0] == '\0' || workLine[0] == COMMENT_CHAR)
             continue;
         if (strstr(workLine, ".extern") || strstr(workLine, ".entry"))
             continue;
@@ -382,23 +421,20 @@ int main(void) {
             }
         }
         if (strstr(workLine, ".data") || strstr(workLine, ".string")) {
-            if (hasLabel) {
+            if (hasLabel)
                 addLabel(&labelTable, labelName, dataStart, 0, 0);
-            }
             int n = (strstr(workLine, ".data")) ? countDataWords(workLine) : countStringWords(workLine);
             dataStart += n;
-        }
-        else if (isInstructionLine(workLine)) {
-            if (hasLabel) {
+        } else if (isInstructionLine(workLine)) {
+            if (hasLabel)
                 addLabel(&labelTable, labelName, instStart, 0, 0);
-            }
             int n = countInstructionWords(workLine);
             instStart += n;
         }
     }
     fclose(expandedFile);
-
-    // 5) Third pass: produce a cleaned file with no label definitions
+    
+    // 6) Third pass: produce a clean file with no label definitions.
     FILE *cleanFile = fopen("test/test2.noLabels.am", "w");
     if (!cleanFile) {
         fprintf(stderr, "Error opening file for clean output\n");
@@ -433,8 +469,8 @@ int main(void) {
     }
     fclose(expandedFile);
     fclose(cleanFile);
-
-    // 6) Fourth pass: encode instructions and data
+    
+    // 7) Fourth pass: encode instructions and data.
     MachineWord *machineWords = malloc(totalWordCount * sizeof(MachineWord));
     WordType *wordTypes = malloc(totalWordCount * sizeof(WordType));
     if (!machineWords || !wordTypes) {
@@ -459,7 +495,7 @@ int main(void) {
         strncpy(trimmed, line, MAX_LINE_LENGTH);
         trimmed[MAX_LINE_LENGTH - 1] = '\0';
         TrimWhiteSpace(trimmed);
-        if (trimmed[0] == '\0' || trimmed[0] == ';')
+        if (trimmed[0] == '\0' || trimmed[0] == COMMENT_CHAR)
             continue;
         if (strstr(trimmed, ".data") || strstr(trimmed, ".string"))
             encodeDataLine(trimmed, machineWords, &wordIndex, wordTypes);
@@ -467,40 +503,48 @@ int main(void) {
             encodeInstructionLine(trimmed, machineWords, &wordIndex, &labelTable, wordTypes);
     }
     fclose(codeFile);
-
-    // 7) Print the machine code array with breakdown.
+    
+    // 8) Print machine code array with breakdown.
     printf("----------\nMachine Code Array (24-bit binary + breakdown):\n");
     for (int i = 0; i < wordIndex; i++) {
-        printf("Word %d: %s   -->  ", i, machineWords[i].bin);
-        if (wordTypes[i] == COMMAND_WORD) {
-            char are[4], funct[6], dst_reg[4], dst_addr[3], src_reg[4], src_addr[3], opcode[7];
-            strncpy(are, machineWords[i].bin, 3); are[3] = '\0';
-            strncpy(funct, machineWords[i].bin + 3, 5); funct[5] = '\0';
-            strncpy(dst_reg, machineWords[i].bin + 8, 3); dst_reg[3] = '\0';
-            strncpy(dst_addr, machineWords[i].bin + 11, 2); dst_addr[2] = '\0';
-            strncpy(src_reg, machineWords[i].bin + 13, 3); src_reg[3] = '\0';
-            strncpy(src_addr, machineWords[i].bin + 16, 2); src_addr[2] = '\0';
-            strncpy(opcode, machineWords[i].bin + 18, 6); opcode[6] = '\0';
-            printf("ARE: %s  funct: %s  dst_reg: %s  dst_addr: %s  src_reg: %s  src_addr: %s  opcode: %s",
-                   are, funct, dst_reg, dst_addr, src_reg, src_addr, opcode);
+        // Print the full 24-bit binary word.
+        printf("%s", machineWords[i].bin);
+        if (strlen(machineWords[i].mnemonic) > 0)
+            printf("  (Mnemonic: %s)", machineWords[i].mnemonic);
+        printf("   -->  ");
+        // If mnemonic is non-empty, treat as a command word.
+        if (strlen(machineWords[i].mnemonic) > 0) {
+            printf("opcode: ");
+            printSubstring(machineWords[i].bin, 0, 6);
+            printf("  src_addr: ");
+            printSubstring(machineWords[i].bin, 6, 2);
+            printf("  src_reg: ");
+            printSubstring(machineWords[i].bin, 8, 3);
+            printf("  dst_addr: ");
+            printSubstring(machineWords[i].bin, 11, 2);
+            printf("  dst_reg: ");
+            printSubstring(machineWords[i].bin, 13, 3);
+            printf("  funct: ");
+            printSubstring(machineWords[i].bin, 16, 5);
+            printf("  ARE: ");
+            printSubstring(machineWords[i].bin, 21, 3);
         } else {
-            // For data words, print only the value (lower 21 bits) since ARE is not used.
-            char valueField[22];
-            // Skip the top 3 bits (which are now always 0)
-            strncpy(valueField, machineWords[i].bin + 3, 21);
-            valueField[21] = '\0';
-            printf("Value: %s", valueField);
+            // "No Command" words: split into Space and ARE.
+            printf("Space: ");
+            printSubstring(machineWords[i].bin, 0, 21);
+            printf("  ARE: ");
+            printSubstring(machineWords[i].bin, 21, 3);
         }
         printf("\n");
     }
-
+    
     free(machineWords);
     free(wordTypes);
-
-    // 8) Print label table
+    
+    // 9) Print label table.
     printf("----------\nLabel Table (with assigned addresses):\n");
     printLabelTable(&labelTable, stdout);
-
+    
     freeDataImage(&dataImage);
     freeLabelTable(&labelTable);
     freeMacroArray(&macroArray);

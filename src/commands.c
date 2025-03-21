@@ -1,22 +1,22 @@
 #include "commands.h"
 
 const CommandWord *commands[NUM_COMMANDS] = {
-    &(CommandWord){"mov", 0, 0, 0, 0, 0, 0, 0},
-    &(CommandWord){"cmp", 0, 0, 0, 0, 0, 0, 1},
-    &(CommandWord){"add", 0, 1, 0, 0, 0, 0, 2},
-    &(CommandWord){"sub", 0, 2, 0, 0, 0, 0, 2},
-    &(CommandWord){"lea", 0, 0, 0, 0, 0, 0, 4},
-    &(CommandWord){"clr", 0, 1, 0, 0, 0, 0, 5},
-    &(CommandWord){"not", 0, 2, 0, 0, 0, 0, 5},
-    &(CommandWord){"inc", 0, 3, 0, 0, 0, 0, 5},
-    &(CommandWord){"dec", 0, 4, 0, 0, 0, 0, 5},
-    &(CommandWord){"jmp", 0, 1, 0, 0, 0, 0, 9},
-    &(CommandWord){"bne", 0, 2, 0, 0, 0, 0, 9},
-    &(CommandWord){"jsr", 0, 0, 0, 0, 0, 0, 11},
-    &(CommandWord){"red", 0, 0, 0, 0, 0, 0, 12},
-    &(CommandWord){"prn", 0, 0, 0, 0, 0, 0, 13},
-    &(CommandWord){"rts", 0, 0, 0, 0, 0, 0, 14},
-    &(CommandWord){"stop", 0, 0, 0, 0, 0, 0, 15},
+    &(CommandWord){"mov", 0, 0, 0, 0, 0, 0, 0, OPCODE_MOV},
+    &(CommandWord){"cmp", 0, 0, 0, 0, 0, 0, 0, OPCODE_CMP},
+    &(CommandWord){"add", 0, 0, FUNCT_ADD, 0, 0, 0, 0, OPCODE_ADD},
+    &(CommandWord){"sub", 0, 0, FUNCT_SUB, 0, 0, 0, 0, OPCODE_SUB},
+    &(CommandWord){"lea", 0, 0, 0, 0, 0, 0, 0, OPCODE_LEA},
+    &(CommandWord){"clr", 1, 0, FUNCT_CLR, 0, 0, 0, 0, OPCODE_CLR},
+    &(CommandWord){"not", 1, 0, FUNCT_NOT, 0, 0, 0, 0, OPCODE_NOT},
+    &(CommandWord){"inc", 1, 0, FUNCT_INC, 0, 0, 0, 0, OPCODE_INC},
+    &(CommandWord){"dec", 1, 0, FUNCT_DEC, 0, 0, 0, 0, OPCODE_DEC},
+    &(CommandWord){"jmp", 1, 0, FUNCT_JMP, 0, 0, 0, 0, OPCODE_JMP},
+    &(CommandWord){"bne", 1, 0, FUNCT_BNE, 0, 0, 0, 0, OPCODE_BNE},
+    &(CommandWord){"jsr", 1, 0, FUNCT_JSR, 0, 0, 0, 0, OPCODE_JSR},
+    &(CommandWord){"red", 1, 0, 0, 0, 0, 0, 0, OPCODE_RED},
+    &(CommandWord){"prn", 1, 0, 0, 0, 0, 0, 0, OPCODE_PRN},
+    &(CommandWord){"rts", 1, 0, 0, 0, 0, 0, 0, OPCODE_RTS},
+    &(CommandWord){"stop",1, 0, 0, 0, 0, 0, 0, OPCODE_STOP},
 };
 
 const char *operations[NUM_COMMANDS] = {

@@ -9,13 +9,14 @@
 
 typedef struct {
     char *name;
-    uint8_t are : 3;
-    uint8_t funct : 5;
-    uint8_t dst_reg : 3;
-    uint8_t dst_addressing : 2;
-    uint8_t src_reg : 3;
-    uint8_t src_addressing : 2;
-    uint8_t opcode : 6;
+    uint8_t oneOperand;      // 1 if the command takes one operand, 0 if two operands
+    uint8_t are;             // should be 0 initially (we force A later for command words)
+    uint8_t funct;           // e.g., 1 for add
+    uint8_t dst_reg;
+    uint8_t dst_addressing;
+    uint8_t src_reg;
+    uint8_t src_addressing;
+    uint8_t opcode;          // e.g., 2 for add
 } CommandWord;
 
 typedef struct {

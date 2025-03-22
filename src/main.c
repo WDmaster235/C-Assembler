@@ -78,20 +78,29 @@ static void AddExtRef(ExtRefArray *arr, const char *label, int address) {
     arr->count++;
 }
 
-/* Print each external reference in the format:
-   <labelName> <address>, one line per usage. */
-static void writeExtFile(const char *path, ExtRefArray *arr) {
+/* We assume ExtRefArray 'arr' has usage lines,
+   and LabelTable 'table' has the external labels themselves.
+*/
+void writeExtFile(const char *path, ExtRefArray *arr, const LabelTable *table)
+{
     FILE *fp = fopen(path, "w");
     if (!fp) {
         fprintf(stderr, "Cannot open %s for writing.\n", path);
         return;
     }
-    for (size_t i = 0; i < arr->count; i++) {
-        /* e.g. "MY_EXTERN 0000130" => you can choose your format. */
+    /* 1) Print each external label at address=0 (or some placeholder) */
+    for (size_t i=0; i < table->count; i++) {
+        if (table->labels[i].isExternal) {
+            fprintf(fp, "%s 000000\n", table->labels[i].name);
+        }
+    }
+    /* 2) Print each usage address from extRefs */
+    for (size_t i=0; i < arr->count; i++) {
         fprintf(fp, "%s %07d\n", arr->items[i].labelName, arr->items[i].address);
     }
     fclose(fp);
 }
+
 
 /************************************************************
  * 2) Our normal MachineWord, .data no ARE bits, macros, etc.
@@ -754,7 +763,8 @@ int main(void)
 
     /* 2) test/1.ps.ext => one line for each usage of an external label: "labelName address" */
     {
-        writeExtFile("test/1.ps.ext", &extRefs);
+        writeExtFile("test/1.ps.ext", &extRefs, &labelTable);
+
         /* That function writes e.g.: MY_EXTERN 0000130 for each usage. */
     }
 

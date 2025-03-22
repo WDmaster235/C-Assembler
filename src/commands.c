@@ -1,7 +1,13 @@
 #include "commands.h"
 
+/* 
+   This array of pointers to CommandWord structures
+   defines the 16 commands. The opcode, funct, oneOperand, etc.
+   must match the table from the instructions. 
+*/
+
 const CommandWord *commands[NUM_COMMANDS] = {
-    &(CommandWord){"mov", 0, 0, 0, 0, 0, 0, 0, OPCODE_MOV},
+    &(CommandWord){"mov", 0, 0, 0 /*funct*/, 0, 0, 0, 0, OPCODE_MOV},
     &(CommandWord){"cmp", 0, 0, 0, 0, 0, 0, 0, OPCODE_CMP},
     &(CommandWord){"add", 0, 0, FUNCT_ADD, 0, 0, 0, 0, OPCODE_ADD},
     &(CommandWord){"sub", 0, 0, FUNCT_SUB, 0, 0, 0, 0, OPCODE_SUB},

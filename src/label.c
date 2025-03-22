@@ -2,11 +2,9 @@
 #include "parser.h"  // For IsCommandName
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
-/* =========================
-   Label Table Functions
-   ========================= */
-
+/* Initialize label table */
 int initLabelTable(LabelTable *table) {
     if (!table) return STATUS_CATASTROPHIC;
     table->labels = malloc(INITIAL_LABEL_CAPACITY * sizeof(Label));
@@ -16,18 +14,24 @@ int initLabelTable(LabelTable *table) {
     return 0;
 }
 
+/* Add a label to the table */
 int addLabel(LabelTable *table, const char *name, int address, int isEntry, int isExternal) {
     if (!table || !name) return STATUS_CATASTROPHIC;
+
     /* Disallow labels that match a command name */
     if (IsCommandName((char *)name)) {
         fprintf(stderr, "Error: Label '%s' cannot be a command name.\n", name);
         return STATUS_NO_RESULT;
     }
+    /* Check for duplicates */
     for (size_t i = 0; i < table->count; i++) {
         if (strcmp(table->labels[i].name, name) == 0) {
+            fprintf(stderr, "Warning: Duplicate label '%s'\n", name);
             return STATUS_NO_RESULT;
         }
     }
+
+    /* Expand array if needed */
     if (table->count >= table->capacity) {
         size_t newCapacity = table->capacity * 2;
         Label *newLabels = realloc(table->labels, newCapacity * sizeof(Label));
@@ -35,6 +39,8 @@ int addLabel(LabelTable *table, const char *name, int address, int isEntry, int 
         table->labels = newLabels;
         table->capacity = newCapacity;
     }
+
+    /* Insert new label */
     strncpy(table->labels[table->count].name, name, MAX_SYMBOL_NAME - 1);
     table->labels[table->count].name[MAX_SYMBOL_NAME - 1] = '\0';
     table->labels[table->count].address = address;
@@ -44,6 +50,7 @@ int addLabel(LabelTable *table, const char *name, int address, int isEntry, int 
     return 0;
 }
 
+/* Find a label by name */
 Label *findLabel(LabelTable *table, const char *name) {
     if (!table || !name) return NULL;
     for (size_t i = 0; i < table->count; i++) {
@@ -54,6 +61,7 @@ Label *findLabel(LabelTable *table, const char *name) {
     return NULL;
 }
 
+/* Print label table for debugging */
 void printLabelTable(const LabelTable *table, FILE *fp) {
     if (!table || !fp) return;
     for (size_t i = 0; i < table->count; i++) {
@@ -65,21 +73,16 @@ void printLabelTable(const LabelTable *table, FILE *fp) {
     }
 }
 
+/* Free the label table */
 void freeLabelTable(LabelTable *table) {
     if (!table) return;
-    free(table->labels);
+    if (table->labels) free(table->labels);
     table->labels = NULL;
     table->count = 0;
     table->capacity = 0;
 }
 
-/* =========================
-   New Output Functions for .entry and .extern
-   ========================= */
-
-/* Writes all labels marked as entry to a file.
-   Each line contains the label name and its address.
-   (Behavior as specified in ממ"ן 14; :contentReference[oaicite:2]{index=2}&#8203;:contentReference[oaicite:3]{index=3}) */
+/* Write all entry labels to a file */
 int writeEntryFile(const char *outputPath, const LabelTable *table) {
     FILE *fp = fopen(outputPath, "w");
     if (!fp) return STATUS_CATASTROPHIC;
@@ -92,9 +95,7 @@ int writeEntryFile(const char *outputPath, const LabelTable *table) {
     return 0;
 }
 
-/* Writes all labels marked as external to a file.
-   In a complete assembler you might also list the usage locations;
-   here we simply output the label names (&#8203;:contentReference[oaicite:4]{index=4}&#8203;:contentReference[oaicite:5]{index=5}). */
+/* Write all extern labels to a file */
 int writeExternFile(const char *outputPath, const LabelTable *table) {
     FILE *fp = fopen(outputPath, "w");
     if (!fp) return STATUS_CATASTROPHIC;

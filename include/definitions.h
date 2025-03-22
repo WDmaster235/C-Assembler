@@ -1,6 +1,6 @@
 #ifndef DEFINITIONS_H
 #define DEFINITIONS_H
-
+#define MAX_LINE_LENGTH 256
 /// FILE DEFINITIONS ///
 #define INPUT_FILE_EXTENSION       ".as"
 #define OBJECT_FILE_EXTENSION      ".ob"

@@ -35,5 +35,6 @@ int parseDataDirective(const char *line, DataImage *data);
    into the DataImage.
    Returns 0 on success, non-zero on error. */
 int parseStringDirective(const char *line, DataImage *data);
+int isRegister(const char *token);
 
 #endif

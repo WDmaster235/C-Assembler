@@ -1,73 +1,35 @@
 #ifndef COMMANDS_H
 #define COMMANDS_H
-#include <stdio.h>
-
+#include <stdint.h>
 #include "definitions.h"
 
-#define NUM_COMMANDS 16
-extern const char *operations[NUM_COMMANDS]; 
+#define E 1
+#define R 2
+#define A 4
 
-typedef enum {
-    MOV = 0,
-    CMP = 1,
-    ADD_SUB = 2,
-    LEA = 4,
-    INC_DEC_CLR_NOT = 5,
-    JMP_BNE_JSR = 9,
-    RED = 12,
-    PRN = 13,
-    RTS = 14,
-    STOP = 15
-} Opcode;
+typedef struct {
+    char *name;
+    uint8_t oneOperand;      
+    uint8_t are;            
+    uint8_t funct;           
+    uint8_t dst_reg;
+    uint8_t dst_addressing;
+    uint8_t src_reg;
+    uint8_t src_addressing;
+    uint8_t opcode;         
+} CommandWord;
 
-typedef enum{
-    ADD = 1,
-    SUB = 2
-}FUNCT_2;
+typedef struct {
+    uint8_t are : 3;
+    uint32_t address : 21;
+} LabelWord;
 
-typedef enum{
-    CLR = 1,
-    NOT = 2,
-    INC = 3,
-    DEC = 4
-}FUNCT_5;
+typedef struct {
+    uint32_t number : 23;
+} NumberWord;
 
-typedef enum{
-    JMP = 1,
-    BNE = 2,
-    JSR = 3
-}FUNCT_9;
 
-int Mov(int *num1, int *num2);
-
-int Cmp(int *num1, int *num2);
-
-int Add(int *num1, int *num2);
-
-int Sub(int *num1, int *num2);
-
-// int Lea(Label *label, int *reg);
-
-int Clr(int *reg);
-
-int Not(int *num);
-
-int Inc(int *num);
-
-int Dec(int *num);
-
-int Jmp(int *address);
-
-int Bne(int *address);
-
-int Jsr(int *address);
-
-int Red(char chr);
-
-int Prn(char chr);
-
-int Rts();
-
-int Stop();
+extern const CommandWord *commands[NUM_COMMANDS];
+extern const char *operations[NUM_COMMANDS];
 
 #endif

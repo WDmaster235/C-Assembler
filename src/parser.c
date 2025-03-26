@@ -30,7 +30,7 @@ int IsCommandName(char *macro) {
             return 1; // Match found
         }
     }
-    return 0; // No match found
+    return 0;
 }
 
 int IsCommentLine(char *line, size_t line_length) {

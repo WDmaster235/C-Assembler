@@ -1,14 +1,13 @@
 #ifndef DEFINITIONS_H
 #define DEFINITIONS_H
-
-/// FILE DEFINITIONS ///
+#define MAX_LINE_LENGTH 256
 #define INPUT_FILE_EXTENSION       ".as"
 #define OBJECT_FILE_EXTENSION      ".ob"
 #define EXTENDED_FILE_EXTENSION    ".am"
 #define ENTRIES_FILE_EXTENSION     ".ent"
 #define EXTERNALS_FILE_EXTENSION   ".ext"
 
-/// TESTING DEFINITIONS ///
+
 #ifdef TEST_MODE
 
 #define INPUT_FP                   "tests/input"
@@ -19,10 +18,10 @@
 
 #endif
 
-/// STANDARD INPUT DEFINITIONS ///
+
 #define MAX_LINE_LENGTH   128
 
-/// OPCODES ///
+
 #define OPCODE_MOV     0
 #define OPCODE_CMP     1
 #define OPCODE_ADD     2
@@ -40,7 +39,7 @@
 #define OPCODE_RTS    14
 #define OPCODE_STOP   15
 
-/// FUNCT ///
+
 #define FUNCT_ADD      1
 #define FUNCT_SUB      2
 #define FUNCT_CLR      1
@@ -51,39 +50,41 @@
 #define FUNCT_BNE      2
 #define FUNCT_JSR      3
 
-/// ADDRESSING MODES ///
-#define ADDRESS_IMMEDIATE      0  // #value
-#define ADDRESS_DIRECT         1  // label
-#define ADDRESS_RELATIVE       2  // &label
-#define ADDRESS_REGISTER       3  // rX
 
-/// ERROR CODES ///
-#define STATUS_CATASTROPHIC   -1  // Catasrophic error
-#define STATUS_NO_RESULT       1  // Failure to complete task, no action needed
+#define ADDRESS_IMMEDIATE      0  
+#define ADDRESS_DIRECT         1
+#define ADDRESS_RELATIVE       2 
+#define ADDRESS_REGISTER       3
+
+
+#define STATUS_CATASTROPHIC   -1  
+#define STATUS_NO_RESULT       1  
 #define STATUS_WRONG           2
 
-/// SYMBOL TABLE ///
+
 #define MAX_SYMBOLS            128
 #define MAX_SYMBOL_NAME        32
 
-/// OUTPUT FORMATTING ///
-#define WORD_SIZE              24 // Machine word size in bits
-#define OUTPUT_BASE            6  // Default output base (e.g., base 10)
 
-/// SPECIAL CHARACTERS ///
-#define COMMENT_CHAR   ';'       // For skipping comments
-#define LABEL_DELIM    ':'       // For labels
-#define MACRO_START    "mcro"    // Start of macro
-#define MACRO_END      "mcroend" // End of macro
+#define WORD_SIZE              24 
+#define OUTPUT_BASE            6  
 
-///MEMORY LIMITS///
+#define COMMENT_CHAR   ';'       
+#define LABEL_DELIM    ':'       
+#define MACRO_START    "mcro"    
+#define MACRO_END      "mcroend" 
+
+
 #define MAX_TAG_MEMORY 1024
 
-///TAGS///
+
 #define MAX_LABELS 128
 
-///REGISTERS///
+
 #define MAX_REGISTER 8
+#define MAX_SYMBOL_NAME 32
+#define MAX_LINE_LENGTH 256
+#define NUM_COMMANDS    16
+#define MAX_MNEMONIC_LENGTH 20
 
-
-#endif // DEFINITIONS_H
+#endif 
